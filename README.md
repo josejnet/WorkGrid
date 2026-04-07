@@ -1,6 +1,20 @@
-# WorkGrid
+ï»¿# WorkGrid
 
 WorkGrid is a simple multi-project task board (React + Firebase).
+
+[![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=josejcoy%40gmail.com&currency_code=EUR&item_name=Support%20WorkGrid)
+
+If WorkGrid helps you, consider supporting development via PayPal: **josejcoy@gmail.com**.
+
+---
+
+## Screenshots
+
+### Dashboard (anonymized)
+![WorkGrid Dashboard](./secreenshot1.png)
+
+### Project Board (anonymized)
+![WorkGrid Project Board](./secreenshot2.png)
 
 ---
 
@@ -59,20 +73,20 @@ This public repo is sanitized:
 
 ---
 
-## Español (ELI5)
+## EspaÃ±ol (ELI5)
 
-### ¿Qué es WorkGrid?
+### Â¿QuÃ© es WorkGrid?
 Piensa en WorkGrid como una pizarra digital:
 - Creas proyectos.
 - Dentro de cada proyecto, creas tareas.
-- Las tareas se mueven por columnas (Pendiente, En Desarrollo, Pruebas, Producción).
+- Las tareas se mueven por columnas (Pendiente, En Desarrollo, Pruebas, ProducciÃ³n).
 
-### ¿Qué necesito antes de empezar?
-1. Node.js instalado (versión LTS).
+### Â¿QuÃ© necesito antes de empezar?
+1. Node.js instalado (versiÃ³n LTS).
 2. Un proyecto en Firebase (vale el plan gratis).
 3. Este repositorio descargado/clonado.
 
-### Instalación (muy fácil)
+### InstalaciÃ³n (muy fÃ¡cil)
 1. Abre una terminal en la carpeta del proyecto.
 2. Instala dependencias:
 
@@ -100,14 +114,14 @@ npm run dev
 
 5. Abre la URL que salga en terminal (normalmente `http://localhost:5173`).
 
-### Build para producción
+### Build para producciÃ³n
 
 ```bash
 npm run build
 ```
 
 ### Nota importante de privacidad
-Este repo público está saneado:
+Este repo pÃºblico estÃ¡ saneado:
 - Sin exportaciones de tareas personales.
 - Sin secretos privados (`.env`).
-- La configuración Firebase la pones tú con tus variables de entorno.
+- La configuraciÃ³n Firebase la pones tÃº con tus variables de entorno.
