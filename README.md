@@ -125,3 +125,25 @@ Este repo público está saneado:
 - Sin exportaciones de tareas personales.
 - Sin secretos privados (`.env`).
 - La configuración Firebase la pones tú con tus variables de entorno.
+
+---
+
+## Build It With AI (Short)
+You can build, customize, deploy, and maintain WorkGrid using an AI coding assistant like ChatGPT/Codex.
+
+Typical flow:
+1. Ask for the change in plain language.
+2. Let the assistant edit code and configs.
+3. Run tests/build.
+4. Commit + deploy.
+
+---
+
+## Hazlo con IA (Corto)
+Puedes crear, personalizar, desplegar y mantener WorkGrid usando un asistente de código con IA como ChatGPT/Codex.
+
+Flujo típico:
+1. Pides el cambio en lenguaje normal.
+2. La IA edita código y configuración.
+3. Ejecutas test/build.
+4. Commit + deploy.
