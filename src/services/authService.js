@@ -1,6 +1,6 @@
 import { auth, db } from "../firebase";
 import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, limit, query, setDoc } from "firebase/firestore";
 import { SUPER_ADMIN } from "../lib/constants";
 
 const provider = new GoogleAuthProvider();
@@ -68,8 +68,12 @@ export async function fetchSession(firebaseUser) {
       return { email, ...snap.data() };
     }
 
-    // First login — auto-create pending user
-    const isSA = email === SUPER_ADMIN;
+    // First login — if this is the first user in the whole app, bootstrap as admin.
+    // Fallback: SUPER_ADMIN env var keeps explicit admin assignment support.
+    const usersCol = collection(db, "users");
+    const firstUserSnap = await getDocs(query(usersCol, limit(1)));
+    const isFirstUser = firstUserSnap.empty;
+    const isSA = email === SUPER_ADMIN || isFirstUser;
     const newUser = {
       name:     displayName || email,
       email,
