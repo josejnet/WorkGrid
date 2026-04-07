@@ -4,7 +4,7 @@ WorkGrid is a simple multi-project task board (React + Firebase).
 
 [![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=josejcoy%40gmail.com&currency_code=EUR&item_name=Support%20WorkGrid)
 
-If WorkGrid helps you, consider supporting development via PayPal: **josejcoy@gmail.com**.
+If WorkGrid helps you, consider supporting development via PayPal.
 
 ---
 
