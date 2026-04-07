@@ -128,22 +128,88 @@ Este repo público está saneado:
 
 ---
 
-## Build It With AI (Short)
-You can build, customize, deploy, and maintain WorkGrid using an AI coding assistant like ChatGPT/Codex.
+## Install With AI (Step by Step)
+You can install WorkGrid end-to-end with an AI assistant like ChatGPT/Codex.
 
-Typical flow:
-1. Ask for the change in plain language.
-2. Let the assistant edit code and configs.
-3. Run tests/build.
-4. Commit + deploy.
+1. Ask the AI to prepare your local setup.
+Example: "Help me install WorkGrid on Windows/Mac/Linux."
+
+2. Ask it to check prerequisites.
+- Node.js version
+- npm available
+- Git available
+
+3. Ask it to install dependencies.
+```bash
+npm install
+```
+
+4. Ask it to create your env file from template.
+- Copy `.env.example` to `.env.local`
+- Fill Firebase values
+
+5. Ask it to validate your Firebase config.
+- Auth enabled (Google)
+- Firestore created
+- Rules/deploy status checked
+
+6. Ask it to run the project locally.
+```bash
+npm run dev
+```
+
+7. Ask it to verify login + first admin bootstrap.
+- First user should be admin (fresh database)
+
+8. Ask it to build before publish.
+```bash
+npm run build
+```
+
+9. Ask it to deploy.
+- Vercel/Firebase Hosting (your choice)
+- Confirm production URL
 
 ---
 
-## Hazlo con IA (Corto)
-Puedes crear, personalizar, desplegar y mantener WorkGrid usando un asistente de código con IA como ChatGPT/Codex.
+## Instálalo Con IA (Paso a Paso)
+Puedes instalar WorkGrid de principio a fin con un asistente de IA como ChatGPT/Codex.
 
-Flujo típico:
-1. Pides el cambio en lenguaje normal.
-2. La IA edita código y configuración.
-3. Ejecutas test/build.
-4. Commit + deploy.
+1. Pide a la IA que te guíe en la instalación local.
+Ejemplo: "Ayúdame a instalar WorkGrid en Windows/Mac/Linux."
+
+2. Pídele que valide requisitos.
+- Versión de Node.js
+- npm disponible
+- Git disponible
+
+3. Pídele instalar dependencias.
+```bash
+npm install
+```
+
+4. Pídele crear tu archivo de entorno desde la plantilla.
+- Copiar `.env.example` a `.env.local`
+- Rellenar variables de Firebase
+
+5. Pídele validar configuración de Firebase.
+- Auth habilitado (Google)
+- Firestore creado
+- Reglas/deploy revisados
+
+6. Pídele arrancar el proyecto local.
+```bash
+npm run dev
+```
+
+7. Pídele comprobar login + admin inicial.
+- El primer usuario debe quedar como admin (base de datos nueva)
+
+8. Pídele compilar antes de publicar.
+```bash
+npm run build
+```
+
+9. Pídele desplegar.
+- Vercel/Firebase Hosting (lo que prefieras)
+- Confirmar URL de producción
