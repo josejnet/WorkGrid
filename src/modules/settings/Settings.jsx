@@ -15,6 +15,7 @@ export default function Settings() {
   const [tab, setTab]               = useState(location.state?.tab || "users");
   const [userModal, setUserModal]   = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const PAYPAL_DONATE_URL = "https://www.paypal.com/donate/?business=josejcoy%40gmail.com&currency_code=EUR&item_name=Support%20WorkGrid";
 
   const pending = users.filter(u => u.active === false && u.email !== SUPER_ADMIN);
 
@@ -52,6 +53,27 @@ export default function Settings() {
       </div>
       <div style={{ fontSize: 12, color: C.muted, marginBottom: 24 }}>
         Maestro de usuarios · Maestro de proyectos · Log detallado
+        <a
+          href={PAYPAL_DONATE_URL}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            marginLeft: 12,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "5px 10px",
+            borderRadius: 8,
+            border: `1px solid ${C.blue}66`,
+            background: C.blue + "18",
+            color: C.blue,
+            fontWeight: 700,
+            textDecoration: "none",
+            fontSize: 11,
+          }}
+        >
+          Donate PayPal
+        </a>
       </div>
 
       <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${C.border}`, marginBottom: 28 }}>
