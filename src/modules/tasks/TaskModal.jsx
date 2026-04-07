@@ -1,8 +1,90 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { C } from "../../lib/theme";
 import { getInputStyle, getLabelStyle } from "../../lib/styles";
 import { TAREA_VACIA, TALLER_TIPOS, TALLER_PRIOS, TALLER_ESTADOS } from "../../lib/constants";
 import Btn from "../../components/ui/Btn";
+
+function ThemedSelect({ value, onChange, options, style, placeholder = "— Seleccionar" }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    function onDocClick(e) {
+      if (!rootRef.current?.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  const selected = options.find(o => o.value === value);
+
+  return (
+    <div ref={rootRef} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        style={{
+          ...style,
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          textAlign: "left",
+          cursor: "pointer",
+        }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {selected ? selected.label : placeholder}
+        </span>
+        <span style={{ marginLeft: 8, color: C.muted, fontSize: 12, lineHeight: 1 }}>▾</span>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            zIndex: 40,
+            borderRadius: 8,
+            border: `1px solid ${C.border2}`,
+            background: C.panel,
+            boxShadow: "0 8px 18px rgba(0,0,0,0.2)",
+            maxHeight: 220,
+            overflowY: "auto",
+          }}
+        >
+          {options.map(opt => {
+            const active = opt.value === value;
+            return (
+              <button
+                key={String(opt.value)}
+                type="button"
+                onClick={() => { onChange(opt.value); setOpen(false); }}
+                style={{
+                  width: "100%",
+                  background: active ? C.blue + "22" : "transparent",
+                  color: active ? C.blue : C.text,
+                  border: "none",
+                  borderBottom: `1px solid ${C.border}`,
+                  padding: "8px 10px",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontFamily: "inherit",
+                  fontWeight: active ? 700 : 500,
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function TaskModal({ tarea, session, users, project, projectId, onClose, onSave }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -54,7 +136,6 @@ export default function TaskModal({ tarea, session, users, project, projectId, o
   const half     = { flex: 1 };
   const errStyle = { color: C.red, fontSize: 11, marginTop: 3, marginBottom: 0 };
   const fs       = (k) => ({ ...inputStyle, ...(errors[k] ? { borderColor: C.red } : {}) });
-  const ss       = (k) => ({ ...fs(k), colorScheme: "light" });
 
   // Admins (role=admin) and the current session user are always eligible,
   // regardless of per-project writeUsers (their assignment bypasses the check).
@@ -91,21 +172,30 @@ export default function TaskModal({ tarea, session, users, project, projectId, o
           <div style={{ ...row, marginTop: 12 }}>
             <div style={half}>
               <label style={labelStyle}>Tipo *</label>
-              <select value={form.tipo} onChange={e => set("tipo", e.target.value)} style={ss("tipo")}>
-                {TALLER_TIPOS.map(t => <option key={t}>{t}</option>)}
-              </select>
+              <ThemedSelect
+                value={form.tipo}
+                onChange={v => set("tipo", v)}
+                options={TALLER_TIPOS.map(t => ({ value: t, label: t }))}
+                style={fs("tipo")}
+              />
             </div>
             <div style={half}>
               <label style={labelStyle}>Prioridad *</label>
-              <select value={form.prioridad} onChange={e => set("prioridad", e.target.value)} style={ss("prioridad")}>
-                {TALLER_PRIOS.map(p => <option key={p}>{p}</option>)}
-              </select>
+              <ThemedSelect
+                value={form.prioridad}
+                onChange={v => set("prioridad", v)}
+                options={TALLER_PRIOS.map(p => ({ value: p, label: p }))}
+                style={fs("prioridad")}
+              />
             </div>
             <div style={half}>
               <label style={labelStyle}>Estado *</label>
-              <select value={form.estado} onChange={e => set("estado", e.target.value)} style={ss("estado")}>
-                {TALLER_ESTADOS.map(s => <option key={s}>{s}</option>)}
-              </select>
+              <ThemedSelect
+                value={form.estado}
+                onChange={v => set("estado", v)}
+                options={TALLER_ESTADOS.map(s => ({ value: s, label: s }))}
+                style={fs("estado")}
+              />
             </div>
           </div>
 
@@ -113,10 +203,15 @@ export default function TaskModal({ tarea, session, users, project, projectId, o
             <div style={half}>
               <label style={labelStyle}>Responsable *</label>
               {eligible.length > 0 ? (
-                <select value={form.responsable} onChange={e => set("responsable", e.target.value)} style={ss("responsable")}>
-                  <option value="">— Sin asignar</option>
-                  {eligible.map(u => <option key={u._fid} value={u.email}>{u.name || u.email}</option>)}
-                </select>
+                <ThemedSelect
+                  value={form.responsable}
+                  onChange={v => set("responsable", v)}
+                  options={[
+                    { value: "", label: "— Sin asignar" },
+                    ...eligible.map(u => ({ value: u.email, label: u.name || u.email })),
+                  ]}
+                  style={fs("responsable")}
+                />
               ) : (
                 <input value={form.responsable} onChange={e => set("responsable", e.target.value)} style={fs("responsable")} placeholder="Nombre o email" />
               )}
