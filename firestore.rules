@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+    function isAuth()   { return request.auth != null; }
+    function email()    { return request.auth.token.email; }
+
+    function userData() {
+      return get(/databases/$(database)/documents/users/$(email())).data;
+    }
+
+    // isAdmin() relies ONLY on the Firestore user doc role — no hardcoded email.
+    // The bootstrap flow (authService.js) already creates the SUPER_ADMIN user
+    // doc with role="admin" on first login, so this is safe.
+    function isAdmin() {
+      return isAuth() && userData().role == "admin";
+    }
+
+    function isActive() {
+      return isAuth() && userData().active == true;
+    }
+
+    function projectData(pid) {
+      return get(/databases/$(database)/documents/projects/$(pid)).data;
+    }
+
+    function canRead(pid) {
+      return isAdmin() || (
+        isActive() && (
+          email() in projectData(pid).readUsers ||
+          email() in projectData(pid).writeUsers
+        )
+      );
+    }
+
+    function canWrite(pid) {
+      return isAdmin() || (isActive() && email() in projectData(pid).writeUsers);
+    }
+
+    // ── users ─────────────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read:   if isActive() || (isAuth() && email() == uid);
+      // First login: user creates their own doc only (document ID must equal email)
+      allow create: if isAuth() && email() == uid;
+      // Only admins can modify user docs (role, active flag, etc.)
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── projects ──────────────────────────────────────────────────────────────
+    match /projects/{pid} {
+      allow read:  if canRead(pid);
+      allow write: if isAdmin();
+    }
+
+    // ── tasks ─────────────────────────────────────────────────────────────────
+    match /taller_tareas/{tid} {
+      allow read:   if canRead(resource.data.projectId);
+
+      allow create: if canWrite(request.resource.data.projectId)
+                    // título is mandatory and bounded
+                    && request.resource.data.titulo is string
+                    && request.resource.data.titulo.size() > 0
+                    && request.resource.data.titulo.size() <= 500
+                    // creadoPor must match the authenticated user — prevents forging task creator
+                    && request.resource.data.creadoPor == email();
+
+      // Prevent direct projectId mutation via SDK: only admins can change it.
+      // Non-admin writers can edit all other fields but cannot move a task
+      // between projects by writing projectId directly.
+      allow update: if canWrite(resource.data.projectId)
+                    && (
+                      isAdmin()
+                      || request.resource.data.projectId == resource.data.projectId
+                    );
+
+      allow delete: if isAdmin();
+    }
+
+    // ── changelog ─────────────────────────────────────────────────────────────
+    match /taller_changelog/{cid} {
+      allow read:          if canRead(resource.data.projectId);
+      allow create:        if canWrite(request.resource.data.projectId);
+      allow update, delete: if isAdmin();
+    }
+
+    // ── activity log ──────────────────────────────────────────────────────────
+    // Append-only. Enforce that the performedBy field matches the authenticated
+    // user's email — prevents log forgery (writing entries as other users).
+    match /taller_log/{lid} {
+      allow read:          if isAdmin();
+      allow create:        if isActive()
+                           && request.resource.data.performedBy == email();
+      allow update, delete: if false;
+    }
+
+    // ── notifications ─────────────────────────────────────────────────────────
+    // Enforce: the creator cannot target themselves (notifications are sent TO
+    // other users). The userId field must be a non-empty string.
+    match /taller_notificaciones/{nid} {
+      allow read, update: if isAuth() && resource.data.userId == email();
+      allow create:       if isActive()
+                          && request.resource.data.userId is string
+                          && request.resource.data.userId.size() > 0
+                          && request.resource.data.userId != email();
+      allow delete: if false;
+    }
+  }
+}
