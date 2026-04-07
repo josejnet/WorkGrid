@@ -108,6 +108,44 @@ export default function ProjectDetail() {
   function openPrompt(t) { setPromptTask(t); setPromptText(t.taskPrompt || ""); setPromptCopied(false); }
   function closePrompt() { setPromptTask(null); setPromptText(""); setPromptSaving(false); setPromptCopied(false); }
 
+  function normalizeHeader(raw) {
+    return (raw || "")
+      .replace(/^\uFEFF/, "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^\w]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  }
+
+  function toCanonicalKey(rawHeader) {
+    const h = normalizeHeader(rawHeader);
+    const map = {
+      id: "taskId",
+      taskid: "taskId",
+      task_id: "taskId",
+      titulo: "titulo",
+      title: "titulo",
+      problema: "problema",
+      problema_contexto: "problema",
+      contexto: "problema",
+      solucion: "solucion",
+      tipo: "tipo",
+      prioridad: "prioridad",
+      estado: "estado",
+      responsable: "responsable",
+      version: "version",
+      fecha_inicio: "fechaInicio",
+      fechainicio: "fechaInicio",
+      plazo: "plazo",
+      fecha_fin: "fechaFin",
+      fechafin: "fechaFin",
+      prompt: "taskPrompt",
+      taskprompt: "taskPrompt",
+      task_prompt: "taskPrompt",
+    };
+    return map[h] || rawHeader.trim();
+  }
+
   function parseCSV(text) {
     // Auto-detect delimiter from the first line (comma vs semicolon vs tab).
     const firstLine = text.slice(0, text.indexOf("\n") < 0 ? undefined : text.indexOf("\n"));
@@ -140,9 +178,13 @@ export default function ProjectDetail() {
     }
     if (cur || fields.length) commitRow();
 
-    if (rows.length < 2) throw new Error("El CSV debe tener encabezado y al menos una fila de datos.");
-    const headers = rows[0].map(h => h.trim());
-    return rows.slice(1).map(vals => {
+    const cleanRows = [...rows];
+    if (cleanRows[0] && cleanRows[0].length === 1 && /^sep\s*=\s*[,;\t]$/i.test(cleanRows[0][0].trim())) {
+      cleanRows.shift();
+    }
+    if (cleanRows.length < 2) throw new Error("El CSV debe tener encabezado y al menos una fila de datos.");
+    const headers = cleanRows[0].map(h => toCanonicalKey(h));
+    return cleanRows.slice(1).map(vals => {
       const obj = {};
       headers.forEach((h, i) => { obj[h] = (vals[i] ?? "").trim(); });
       return obj;
@@ -156,8 +198,8 @@ export default function ProjectDetail() {
 
   function exportProjectTasksCSV() {
     const header = [
-      "taskId", "titulo", "problema", "solucion", "tipo", "prioridad",
-      "estado", "responsable", "version", "fechaInicio", "plazo", "fechaFin", "taskPrompt",
+      "id", "titulo", "problema_contexto", "solucion", "tipo", "prioridad",
+      "estado", "responsable", "version", "fecha_inicio", "plazo", "fecha_fin", "prompt",
     ];
     const rows = sortByPrio(tareasDelProyecto).map(t => ([
       t.taskId || "",
@@ -173,9 +215,9 @@ export default function ProjectDetail() {
       t.plazo || "",
       t.fechaFin || "",
       t.taskPrompt || "",
-    ].map(csvCell).join(",")));
+    ].map(csvCell).join(";")));
 
-    const csv = [header.join(","), ...rows].join("\n");
+    const csv = "\uFEFF" + ["sep=;", header.join(";"), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -635,9 +677,9 @@ export default function ProjectDetail() {
 
             <div style={{ fontSize: 12, color: C.muted, marginBottom: 16, lineHeight: 1.6 }}>
               Selecciona un archivo <code style={{ background: C.card, borderRadius: 4, padding: "1px 5px", color: C.text }}>.csv</code> con encabezado y una tarea por fila. Columnas requeridas:{" "}
-              <code style={{ background: C.card, borderRadius: 4, padding: "1px 5px", color: C.text }}>taskId, titulo, problema, solucion, tipo, prioridad, estado, responsable, version, fechaInicio, plazo, fechaFin, taskPrompt</code>.
+              <code style={{ background: C.card, borderRadius: 4, padding: "1px 5px", color: C.text }}>id, titulo, problema_contexto, solucion, tipo, prioridad, estado, responsable, version, fecha_inicio, plazo, fecha_fin, prompt</code>.
               <br />
-              <span>Reglas: si <code style={{ background: C.card, borderRadius: 4, padding: "1px 5px", color: C.text }}>taskId</code> está vacío se crea una tarea nueva; si coincide con una existente en este proyecto, se actualiza.</span>
+              <span>Reglas: si <code style={{ background: C.card, borderRadius: 4, padding: "1px 5px", color: C.text }}>id</code> está vacío se crea una tarea nueva; si coincide con una existente en este proyecto, se actualiza.</span>
             </div>
 
             <div style={{ marginBottom: 12, display: "flex", justifyContent: "flex-end" }}>
@@ -646,9 +688,9 @@ export default function ProjectDetail() {
                 onClick={() => {
                   const today = new Date().toISOString().slice(0, 10);
                   const deadline = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
-                  const header = "taskId,titulo,problema,solucion,tipo,prioridad,estado,responsable,version,fechaInicio,plazo,fechaFin,taskPrompt";
-                  const example = `"","Error en pantalla de login","Los usuarios no pueden iniciar sesión con email inválido","Añadir validación de formato de email antes de enviar el formulario","Bug","Alta","Pendiente","dev@ejemplo.com","1.0.0","${today}","${deadline}","",""`;
-                  const csv = header + "\n" + example;
+                  const header = "id;titulo;problema_contexto;solucion;tipo;prioridad;estado;responsable;version;fecha_inicio;plazo;fecha_fin;prompt";
+                  const example = `"";"Error en pantalla de login";"Los usuarios no pueden iniciar sesión con email inválido";"Añadir validación de formato de email antes de enviar el formulario";"Bug";"Alta";"Pendiente";"dev@ejemplo.com";"1.0.0";"${today}";"${deadline}";"";""`;
+                  const csv = "\uFEFF" + "sep=;\n" + header + "\n" + example;
                   const blob = new Blob([csv], { type: "text/csv" });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a"); a.href = url; a.download = "tareas_ejemplo.csv"; a.click();
