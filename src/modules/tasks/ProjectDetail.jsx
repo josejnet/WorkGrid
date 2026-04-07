@@ -183,10 +183,10 @@ export default function ProjectDetail() {
       cleanRows.shift();
     }
     if (cleanRows.length < 2) throw new Error("El CSV debe tener encabezado y al menos una fila de datos.");
-    const headers = cleanRows[0].map(h => toCanonicalKey(h));
+    const headers = cleanRows[0].map(h => toCanonicalKey(repairMojibake(h)));
     return cleanRows.slice(1).map(vals => {
       const obj = {};
-      headers.forEach((h, i) => { obj[h] = (vals[i] ?? "").trim(); });
+      headers.forEach((h, i) => { obj[h] = repairMojibake((vals[i] ?? "").trim()); });
       return obj;
     });
   }
@@ -196,29 +196,47 @@ export default function ProjectDetail() {
     return `"${s.replace(/"/g, '""')}"`;
   }
 
+  function repairMojibake(value) {
+    const s = value == null ? "" : String(value);
+    if (!/[ÃÂâ]/.test(s)) return s;
+    try {
+      const bytes = Uint8Array.from(s, ch => ch.charCodeAt(0));
+      const repaired = new TextDecoder("utf-8").decode(bytes);
+      return /[ÃÂâ]/.test(repaired) ? s : repaired;
+    } catch {
+      return s;
+    }
+  }
+
+  function createUtf8CsvBlob(csvText) {
+    const bom = new Uint8Array([0xef, 0xbb, 0xbf]);
+    const bytes = new TextEncoder().encode(csvText);
+    return new Blob([bom, bytes], { type: "text/csv;charset=utf-8;" });
+  }
+
   function exportProjectTasksCSV() {
     const header = [
       "id", "titulo", "problema_contexto", "solucion", "tipo", "prioridad",
       "estado", "responsable", "version", "fecha_inicio", "plazo", "fecha_fin", "prompt",
     ];
     const rows = sortByPrio(tareasDelProyecto).map(t => ([
-      t.taskId || "",
-      t.titulo || "",
-      t.problema || "",
-      t.solucion || "",
-      t.tipo || "",
-      t.prioridad || "",
-      t.estado || "",
-      t.responsable || "",
-      t.version || "",
-      t.fechaInicio || "",
-      t.plazo || "",
-      t.fechaFin || "",
-      t.taskPrompt || "",
+      repairMojibake(t.taskId || ""),
+      repairMojibake(t.titulo || ""),
+      repairMojibake(t.problema || ""),
+      repairMojibake(t.solucion || ""),
+      repairMojibake(t.tipo || ""),
+      repairMojibake(t.prioridad || ""),
+      repairMojibake(t.estado || ""),
+      repairMojibake(t.responsable || ""),
+      repairMojibake(t.version || ""),
+      repairMojibake(t.fechaInicio || ""),
+      repairMojibake(t.plazo || ""),
+      repairMojibake(t.fechaFin || ""),
+      repairMojibake(t.taskPrompt || ""),
     ].map(csvCell).join(";")));
 
-    const csv = "\uFEFF" + ["sep=;", header.join(";"), ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const csv = ["sep=;", header.join(";"), ...rows].join("\n");
+    const blob = createUtf8CsvBlob(csv);
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -243,7 +261,7 @@ export default function ProjectDetail() {
         setImportTareas(null);
       }
     };
-    reader.readAsText(file);
+    reader.readAsText(file, "utf-8");
     e.target.value = "";
   }
 
@@ -690,8 +708,8 @@ export default function ProjectDetail() {
                   const deadline = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
                   const header = "id;titulo;problema_contexto;solucion;tipo;prioridad;estado;responsable;version;fecha_inicio;plazo;fecha_fin;prompt";
                   const example = `"";"Error en pantalla de login";"Los usuarios no pueden iniciar sesión con email inválido";"Añadir validación de formato de email antes de enviar el formulario";"Bug";"Alta";"Pendiente";"dev@ejemplo.com";"1.0.0";"${today}";"${deadline}";"";""`;
-                  const csv = "\uFEFF" + "sep=;\n" + header + "\n" + example;
-                  const blob = new Blob([csv], { type: "text/csv" });
+                  const csv = "sep=;\n" + header + "\n" + example;
+                  const blob = createUtf8CsvBlob(csv);
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a"); a.href = url; a.download = "tareas_ejemplo.csv"; a.click();
                   URL.revokeObjectURL(url);
