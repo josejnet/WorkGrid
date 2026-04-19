@@ -1,10 +1,23 @@
-﻿# WorkGrid
+# WorkGrid
 
-WorkGrid is a simple multi-project task board (React + Firebase).
+WorkGrid is a self-hosted, AI-ready task management system built on React + Firebase + Vercel.
 
 [![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=josejcoy%40gmail.com&currency_code=EUR&item_name=Support%20WorkGrid)
 
 If WorkGrid helps you, consider supporting development via PayPal.
+
+---
+
+## What's new
+
+- **WorkGrid CLI** — standalone HTML tool for managing tasks without the full app
+- **REST API** — Vercel serverless endpoint for AI agent integration (`/api/taller`)
+- **OpenAPI 3.0 spec** — `openapi.yaml` documents all endpoints for LLM agents
+- **AI workflow** — pre-analysis prompts, verification prompts, and controlled state transitions
+- **Bulk import** — paste AI-generated tasks in structured format; duplicate detection via content hash
+- **CSV import** — Excel-friendly import/export per project
+- **Backup system** — export/import full JSON snapshots with conflict resolution
+- **URL re-linking tool** — update all project URLs after migration in one click
 
 ---
 
@@ -18,198 +31,185 @@ If WorkGrid helps you, consider supporting development via PayPal.
 
 ---
 
-## English (ELI5)
+## English
 
 ### What is WorkGrid?
-Think of WorkGrid like a digital whiteboard:
-- You create projects.
-- Inside each project, you create tasks.
-- Tasks move across columns (Pending, In Progress, Testing, Production).
+WorkGrid is a multi-project task board where tasks move through a linear state machine:
 
-### What do I need before I start?
-1. Node.js installed (LTS version).
-2. A Firebase project (free tier is fine).
-3. This repository downloaded/cloned.
+```
+Pending → In Progress → Testing → Production
+```
 
-### Install (super simple)
-1. Open a terminal in the project folder.
-2. Install packages:
+It includes a REST API and CLI tool so AI agents can read tasks, execute them, and advance their state autonomously.
+
+### What do I need?
+1. Node.js (LTS)
+2. A Firebase project (free tier is fine)
+3. A Vercel account (free tier)
+
+### Install
 
 ```bash
+git clone https://github.com/josejnet/WorkGrid
+cd WorkGrid
 npm install
 ```
 
-3. Create a local env file from the template:
-- Copy `.env.example` to `.env.local`
-- Fill your Firebase values in `.env.local`
+Copy `.env.example` to `.env.local` and fill your Firebase values:
 
-Example keys you must fill:
-- `VITE_FIREBASE_API_KEY`
-- `VITE_FIREBASE_AUTH_DOMAIN`
-- `VITE_FIREBASE_PROJECT_ID`
-- `VITE_FIREBASE_STORAGE_BUCKET`
-- `VITE_FIREBASE_MESSAGING_SENDER_ID`
-- `VITE_FIREBASE_APP_ID`
+```
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+VITE_SUPER_ADMIN=your@email.com
+```
 
-4. Start the app:
+Start locally:
 
 ```bash
 npm run dev
 ```
 
-5. Open the URL shown in terminal (usually `http://localhost:5173`).
-
-### Build for production
+Deploy to Vercel:
 
 ```bash
-npm run build
+npx vercel --prod
 ```
 
-### Important privacy note
-This public repo is sanitized:
-- No personal task dumps.
-- No private `.env` secrets.
-- Firebase config comes from your own env vars.
+The first user to register becomes admin automatically.
 
 ---
 
-## Español (ELI5)
+## WorkGrid CLI
+
+`public/workgrid-cli.html` is a standalone tool (no build step) for interacting with your WorkGrid API:
+
+- Connect to any WorkGrid deployment with URL + Bearer token
+- Browse, filter, and advance tasks
+- Bulk import tasks from AI-generated text
+- Dynamic schema inspection — adapts to your API fields automatically
+
+Open it directly in a browser or serve it from your Vercel deployment at `/workgrid-cli.html`.
+
+---
+
+## REST API for AI Agents
+
+WorkGrid exposes a serverless API at `/api/taller`. Any AI agent can:
+
+1. `GET /api/taller/schema` — discover fields, state machine, and workflow steps
+2. `GET /api/taller/tasks?estado=Pendiente` — list pending tasks (includes `ai_prompt`, `preanalysis_prompt`, `verification_prompt`)
+3. `POST /api/taller/tasks/{id}/advance` — advance task state
+
+Full specification: [`openapi.yaml`](./openapi.yaml)
+
+### Enable the API
+Go to **Settings → Project Master**, open a project, and click **Generate API token**. Use the token as `Authorization: Bearer <token>`.
+
+### AI workflow (10 steps)
+1. `GET /schema` — cache fields and endpoints
+2. `GET /tasks?estado=Pendiente` — list tasks
+3. Read `preanalysis_prompt` — evaluate before starting (conflicts? already exists?)
+4. Decide: **PROCEED** / **PAUSE** / **MODIFY**
+5. `POST /advance` → In Progress
+6. Execute work using `ai_prompt`
+7. Read `verification_prompt` — verify implementation quality
+8. `POST /advance` → Testing
+9. Read `verification_prompt` — verify production readiness (irreversible step)
+10. `POST /advance` → Production
+
+---
+
+## Español
 
 ### ¿Qué es WorkGrid?
-Piensa en WorkGrid como una pizarra digital:
-- Creas proyectos.
-- Dentro de cada proyecto, creas tareas.
-- Las tareas se mueven por columnas (Pendiente, En Desarrollo, Pruebas, Producción).
+WorkGrid es un gestor de tareas multi-proyecto con API REST y herramienta CLI para que agentes de IA puedan trabajar con las tareas de forma autónoma.
 
-### ¿Qué necesito antes de empezar?
-1. Node.js instalado (versión LTS).
-2. Un proyecto en Firebase (vale el plan gratis).
-3. Este repositorio descargado/clonado.
+Las tareas siguen una máquina de estados lineal:
+```
+Pendiente → En Desarrollo → Pruebas → Producción
+```
 
-### Instalación (muy fácil)
-1. Abre una terminal en la carpeta del proyecto.
-2. Instala dependencias:
+### Instalación
 
 ```bash
+git clone https://github.com/josejnet/WorkGrid
+cd WorkGrid
 npm install
 ```
 
-3. Crea tu archivo de entorno local desde la plantilla:
-- Copia `.env.example` a `.env.local`
-- Rellena tus valores de Firebase en `.env.local`
+Crea `.env.local` desde `.env.example` con tus datos de Firebase:
 
-Claves que debes rellenar:
-- `VITE_FIREBASE_API_KEY`
-- `VITE_FIREBASE_AUTH_DOMAIN`
-- `VITE_FIREBASE_PROJECT_ID`
-- `VITE_FIREBASE_STORAGE_BUCKET`
-- `VITE_FIREBASE_MESSAGING_SENDER_ID`
-- `VITE_FIREBASE_APP_ID`
+```
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+VITE_SUPER_ADMIN=tu@email.com
+```
 
-4. Arranca la app:
-
+Arranca en local:
 ```bash
 npm run dev
 ```
 
-5. Abre la URL que salga en terminal (normalmente `http://localhost:5173`).
-
-### Build para producción
-
+Deploy en Vercel:
 ```bash
-npm run build
+npx vercel --prod
 ```
 
-### Nota importante de privacidad
-Este repo público está saneado:
-- Sin exportaciones de tareas personales.
-- Sin secretos privados (`.env`).
-- La configuración Firebase la pones tú con tus variables de entorno.
+El primer usuario en registrarse se convierte en admin automáticamente.
 
 ---
 
-## Install With AI (Step by Step)
-You can install WorkGrid end-to-end with an AI assistant like ChatGPT/Codex.
+## WorkGrid CLI
 
-1. Ask the AI to prepare your local setup.
-Example: "Help me install WorkGrid on Windows/Mac/Linux."
+`public/workgrid-cli.html` es una herramienta standalone (sin build) para interactuar con tu API de WorkGrid:
 
-2. Ask it to check prerequisites.
-- Node.js version
-- npm available
-- Git available
+- Conéctate a cualquier instancia con URL + token Bearer
+- Navega, filtra y avanza tareas
+- Importa tareas en bloque desde texto generado por IA
+- Inspección dinámica del schema — se adapta a los campos de tu API
 
-3. Ask it to install dependencies.
-```bash
-npm install
-```
-
-4. Ask it to create your env file from template.
-- Copy `.env.example` to `.env.local`
-- Fill Firebase values
-
-5. Ask it to validate your Firebase config.
-- Auth enabled (Google)
-- Firestore created
-- Rules/deploy status checked
-
-6. Ask it to run the project locally.
-```bash
-npm run dev
-```
-
-7. Ask it to verify login + first admin bootstrap.
-- First user should be admin (fresh database)
-
-8. Ask it to build before publish.
-```bash
-npm run build
-```
-
-9. Ask it to deploy.
-- Vercel/Firebase Hosting (your choice)
-- Confirm production URL
+Ábrelo directamente en el navegador o accede desde tu despliegue en `/workgrid-cli.html`.
 
 ---
 
-## Instálalo Con IA (Paso a Paso)
-Puedes instalar WorkGrid de principio a fin con un asistente de IA como ChatGPT/Codex.
+## API REST para Agentes IA
 
-1. Pide a la IA que te guíe en la instalación local.
-Ejemplo: "Ayúdame a instalar WorkGrid en Windows/Mac/Linux."
+WorkGrid expone una API serverless en `/api/taller`. Especificación completa en [`openapi.yaml`](./openapi.yaml).
 
-2. Pídele que valide requisitos.
-- Versión de Node.js
-- npm disponible
-- Git disponible
+### Activar la API
+Ve a **Configuración → Maestro de proyectos**, abre un proyecto y haz clic en **Generar token API**.
 
-3. Pídele instalar dependencias.
-```bash
-npm install
+### Variables de entorno en Vercel
+```
+FIREBASE_SERVICE_ACCOUNT_B64=<base64 del JSON de cuenta de servicio de Firebase>
 ```
 
-4. Pídele crear tu archivo de entorno desde la plantilla.
-- Copiar `.env.example` a `.env.local`
-- Rellenar variables de Firebase
+---
 
-5. Pídele validar configuración de Firebase.
-- Auth habilitado (Google)
-- Firestore creado
-- Reglas/deploy revisados
+## Install with AI
 
-6. Pídele arrancar el proyecto local.
-```bash
-npm run dev
-```
+You can set up WorkGrid end-to-end with an AI assistant.
 
-7. Pídele comprobar login + admin inicial.
-- El primer usuario debe quedar como admin (base de datos nueva)
+1. Ask the AI to clone and install: `git clone https://github.com/josejnet/WorkGrid && npm install`
+2. Ask it to create your Firebase project and fill `.env.local`
+3. Ask it to deploy: `npx vercel --prod`
+4. Ask it to set `FIREBASE_SERVICE_ACCOUNT_B64` in Vercel env vars to enable the API
+5. Generate an API token from Settings → Project Master
+6. Open `/workgrid-cli.html` and connect with your URL + token
 
-8. Pídele compilar antes de publicar.
-```bash
-npm run build
-```
+---
 
-9. Pídele desplegar.
-- Vercel/Firebase Hosting (lo que prefieras)
-- Confirmar URL de producción
+## Privacy note
+
+This public repo contains no personal data:
+- No private `.env` secrets
+- No personal task exports
+- Firebase config comes from your own env vars

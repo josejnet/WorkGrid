@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { C } from "../../lib/theme";
 import { TALLER_ESTADOS, ESTADO_COLORS, PRIO_ORDER, TIPO_ICONS, PRIO_COLORS } from "../../lib/constants";
-import { fmtDate } from "../../lib/utils";
+import { fmtDate, contentHash } from "../../lib/utils";
 import Badge from "../../components/ui/Badge";
 import Btn from "../../components/ui/Btn";
 import TaskCard from "./TaskCard";
@@ -36,7 +36,8 @@ export default function ProjectDetail() {
   const [importOpen,       setImportOpen]       = useState(false);
   const [importTareas,     setImportTareas]     = useState(null); // parsed JSON array
   const [importFileName,   setImportFileName]   = useState("");
-  const [importProgress,   setImportProgress]   = useState(null); // {done, total}
+  const [importProgress,   setImportProgress]   = useState(null); // {done, total, created, updated, skipped}
+  const [importSummary,    setImportSummary]    = useState(null); // {created, updated, skipped} | null
   const [importError,      setImportError]      = useState("");
   const [cleanFromId,      setCleanFromId]      = useState("");   // e.g. "CLUB-038"
   const [cleanProgress,    setCleanProgress]    = useState(null); // {done, total} | "done"
@@ -67,6 +68,7 @@ export default function ProjectDetail() {
   const activas           = tareasDelProyecto.filter(t => t.estado !== "Archivado");
   const archivadas        = tareasDelProyecto.filter(t => t.estado === "Archivado");
   const enProd            = activas.filter(t => t.estado === "Producción");
+  const existingImportHashes = new Set(tareasDelProyecto.map(t => t.importHash).filter(Boolean));
 
   // User filter — applied only to the kanban; stats remain project-wide
   const activasFiltradas  = filterUsuario
@@ -294,17 +296,29 @@ export default function ProjectDetail() {
 
   async function confirmarImport() {
     if (!importTareas?.length) return;
-    setImportProgress({ done: 0, total: importTareas.length });
+    const counts = { created: 0, updated: 0, skipped: 0 };
+    setImportProgress({ done: 0, total: importTareas.length, ...counts });
     let done = 0;
     for (const t of importTareas) {
-      await handleImportTareas(t, id);
+      const result = await handleImportTareas(t, id);
+      const status = result?.status ?? "created";
+      counts[status] = (counts[status] || 0) + 1;
       done++;
-      setImportProgress({ done, total: importTareas.length });
+      setImportProgress({ done, total: importTareas.length, ...counts });
     }
+    setImportTareas(null);
+    setImportFileName("");
+    setImportProgress(null);
+    setImportSummary({ ...counts });
+  }
+
+  function closeImportModal() {
     setImportOpen(false);
     setImportTareas(null);
     setImportFileName("");
     setImportProgress(null);
+    setImportSummary(null);
+    setImportError("");
   }
   async function savePrompt() {
     setPromptSaving(true);
@@ -341,21 +355,22 @@ export default function ProjectDetail() {
               </Btn>
             )}
             {isAdmin && (
-              <>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv"
-                  style={{ display: "none" }}
-                  onChange={handleImportFile}
-                />
-                <Btn
-                  color={C.purple}
-                  onClick={() => { setImportOpen(true); setImportTareas(null); setImportFileName(""); setImportError(""); }}
-                >
-                  ⬆ Importar CSV
-                </Btn>
-              </>
+              <a
+                href="/workgrid-cli.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "7px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500,
+                  background: "rgba(139,92,246,.15)", color: "#a78bfa",
+                  border: "1px solid rgba(139,92,246,.3)", textDecoration: "none",
+                  transition: "opacity .15s",
+                }}
+                onMouseOver={e => e.currentTarget.style.opacity = ".75"}
+                onMouseOut={e => e.currentTarget.style.opacity = "1"}
+              >
+                ⚡ WorkGrid CLI
+              </a>
             )}
             <Btn onClick={openNew}>+ Nueva tarea</Btn>
           </div>
@@ -688,9 +703,20 @@ export default function ProjectDetail() {
       {importOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <div style={{ background: C.panel, borderRadius: 18, border: `1px solid ${C.border2}`, width: "100%", maxWidth: 540, padding: 28 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, color: C.text }}>⬆ Importar tareas</div>
-              <button onClick={() => { setImportOpen(false); setImportTareas(null); setImportProgress(null); }} style={{ background: "none", border: "none", color: C.muted, fontSize: 20, cursor: "pointer" }}>✕</button>
+            {/* ── Cabecera con contexto de proyecto ── */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: C.text }}>⬆ Importar tareas</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: proyecto.color, flexShrink: 0, display: "inline-block" }} />
+                  <span style={{ fontSize: 12, color: C.muted }}>
+                    Proyecto:&nbsp;<span style={{ color: C.text, fontWeight: 600 }}>{proyecto.nombre}</span>
+                  </span>
+                  <span style={{ fontSize: 11, color: C.muted }}>·</span>
+                  <span style={{ fontSize: 11, color: C.muted }}>{activas.length} tarea{activas.length !== 1 ? "s" : ""} activa{activas.length !== 1 ? "s" : ""}</span>
+                </div>
+              </div>
+              <button onClick={closeImportModal} style={{ background: "none", border: "none", color: C.muted, fontSize: 20, cursor: "pointer" }}>✕</button>
             </div>
 
             <div style={{ fontSize: 12, color: C.muted, marginBottom: 16, lineHeight: 1.6 }}>
@@ -789,47 +815,98 @@ export default function ProjectDetail() {
               <div style={{ marginTop: 10, color: C.red, fontSize: 12 }}>⚠ {importError}</div>
             )}
 
-            {importTareas && importTareas.length > 0 && (
-              <div style={{ marginTop: 14, background: C.card, borderRadius: 8, border: `1px solid ${C.border}`, maxHeight: 180, overflowY: "auto" }}>
-                {importTareas.slice(0, 8).map((t, i) => (
-                  <div key={i} style={{ padding: "7px 12px", borderBottom: i < Math.min(importTareas.length, 8) - 1 ? `1px solid ${C.border}` : "none", fontSize: 12, color: C.text, display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 10, color: C.muted, fontFamily: "monospace", flexShrink: 0 }}>#{i + 1}</span>
-                    <span style={{ fontSize: 10, color: C.orange, fontFamily: "monospace", flexShrink: 0 }}>{t.taskId || "nuevo"}</span>
-                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.titulo || "(sin título)"}</span>
-                    <span style={{ fontSize: 10, color: C.muted, flexShrink: 0 }}>{t.estado}</span>
+            {importTareas && importTareas.length > 0 && (() => {
+              const duplicados = importTareas.filter(t => !t.taskId && existingImportHashes.has(contentHash(t))).length;
+              return (
+                <div style={{ marginTop: 14 }}>
+                  {duplicados > 0 && (
+                    <div style={{ marginBottom: 6, fontSize: 11, color: C.muted, display: "flex", alignItems: "center", gap: 5 }}>
+                      <span style={{ color: C.orange }}>⚠</span>
+                      {duplicados} tarea{duplicados !== 1 ? "s" : ""} ya importada{duplicados !== 1 ? "s" : ""} (se omitirán)
+                    </div>
+                  )}
+                  <div style={{ background: C.card, borderRadius: 8, border: `1px solid ${C.border}`, maxHeight: 180, overflowY: "auto" }}>
+                    {importTareas.slice(0, 8).map((t, i) => {
+                      const isDup = !t.taskId && existingImportHashes.has(contentHash(t));
+                      return (
+                        <div key={i} style={{ padding: "7px 12px", borderBottom: i < Math.min(importTareas.length, 8) - 1 ? `1px solid ${C.border}` : "none", fontSize: 12, color: isDup ? C.muted : C.text, display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 10, color: C.muted, fontFamily: "monospace", flexShrink: 0 }}>#{i + 1}</span>
+                          <span style={{ fontSize: 10, color: isDup ? C.muted : C.orange, fontFamily: "monospace", flexShrink: 0 }}>{t.taskId || "nuevo"}</span>
+                          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.titulo || "(sin título)"}</span>
+                          {isDup
+                            ? <span style={{ fontSize: 10, color: C.orange, flexShrink: 0, fontStyle: "italic" }}>↻ ya importada</span>
+                            : <span style={{ fontSize: 10, color: C.muted, flexShrink: 0 }}>{t.estado}</span>
+                          }
+                        </div>
+                      );
+                    })}
+                    {importTareas.length > 8 && (
+                      <div style={{ padding: "6px 12px", fontSize: 11, color: C.muted, textAlign: "center" }}>
+                        … y {importTareas.length - 8} más
+                      </div>
+                    )}
                   </div>
-                ))}
-                {importTareas.length > 8 && (
-                  <div style={{ padding: "6px 12px", fontSize: 11, color: C.muted, textAlign: "center" }}>
-                    … y {importTareas.length - 8} más
-                  </div>
-                )}
-              </div>
-            )}
+                </div>
+              );
+            })()}
 
             {importProgress && (
-              <div style={{ marginTop: 14 }}>
-                <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>
-                  Importando {importProgress.done}/{importProgress.total}…
+              <div style={{ marginTop: 14, padding: "10px 12px", background: C.card, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: proyecto.color, display: "inline-block" }} />
+                    <span style={{ fontSize: 12, color: C.text, fontWeight: 600 }}>{proyecto.nombre}</span>
+                  </div>
+                  <span style={{ fontSize: 11, color: C.muted, fontFamily: "monospace" }}>
+                    {importProgress.done}/{importProgress.total}
+                    {importProgress.skipped > 0 && <span style={{ color: C.orange }}> · {importProgress.skipped} omitida{importProgress.skipped !== 1 ? "s" : ""}</span>}
+                  </span>
                 </div>
-                <div style={{ height: 6, background: C.border, borderRadius: 3, overflow: "hidden" }}>
+                <div style={{ height: 5, background: C.border, borderRadius: 3, overflow: "hidden" }}>
                   <div style={{
                     height: "100%", background: C.green, borderRadius: 3,
                     width: `${(importProgress.done / importProgress.total) * 100}%`,
                     transition: "width 0.2s ease",
                   }} />
                 </div>
+                <div style={{ marginTop: 5, fontSize: 11, color: C.muted }}>
+                  Importando en <span style={{ color: C.text }}>{proyecto.nombre}</span>…
+                </div>
+              </div>
+            )}
+
+            {importSummary && (
+              <div style={{ marginTop: 14, padding: "12px 14px", background: C.card, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 8 }}>✓ Importación completada</div>
+                <div style={{ display: "flex", gap: 16, fontSize: 12 }}>
+                  {importSummary.created > 0 && (
+                    <span><span style={{ color: C.green, fontWeight: 600 }}>{importSummary.created}</span> <span style={{ color: C.muted }}>creada{importSummary.created !== 1 ? "s" : ""}</span></span>
+                  )}
+                  {importSummary.updated > 0 && (
+                    <span><span style={{ color: C.orange, fontWeight: 600 }}>{importSummary.updated}</span> <span style={{ color: C.muted }}>actualizada{importSummary.updated !== 1 ? "s" : ""}</span></span>
+                  )}
+                  {importSummary.skipped > 0 && (
+                    <span><span style={{ color: C.muted, fontWeight: 600 }}>{importSummary.skipped}</span> <span style={{ color: C.muted }}>omitida{importSummary.skipped !== 1 ? "s" : ""} (ya existían)</span></span>
+                  )}
+                </div>
               </div>
             )}
 
             <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
-              <Btn color={C.border2} onClick={() => { setImportOpen(false); setImportTareas(null); setImportProgress(null); }} type="button">Cancelar</Btn>
-              <Btn
-                onClick={confirmarImport}
-                disabled={!importTareas || importTareas.length === 0 || !!importProgress}
-              >
-                {importProgress ? `Importando…` : `Importar ${importTareas?.length ?? 0} tarea${importTareas?.length !== 1 ? "s" : ""}`}
-              </Btn>
+              {!importSummary && (
+                <Btn color={C.border2} onClick={closeImportModal} type="button">Cancelar</Btn>
+              )}
+              {importSummary
+                ? <Btn onClick={closeImportModal}>Cerrar</Btn>
+                : (
+                  <Btn
+                    onClick={confirmarImport}
+                    disabled={!importTareas || importTareas.length === 0 || !!importProgress}
+                  >
+                    {importProgress ? `Importando…` : `Importar ${importTareas?.length ?? 0} tarea${importTareas?.length !== 1 ? "s" : ""}`}
+                  </Btn>
+                )
+              }
             </div>
           </div>
         </div>

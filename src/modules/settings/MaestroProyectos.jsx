@@ -8,6 +8,10 @@ import ProjectModal from "../projects/ProjectModal";
 import ProjectAccessManager from "./ProjectAccessManager";
 import { fmtDate } from "../../lib/utils";
 import { useApp } from "../../context/AppContext";
+import { generateProjectApiSecret, revokeProjectApiSecret } from "../../services/projectService";
+
+// URL dinámica: funciona en cualquier entorno (producción, preview, local con vercel dev)
+const API_BASE = `${window.location.origin}/api/taller`;
 
 export default function MaestroProyectos() {
   const {
@@ -15,13 +19,17 @@ export default function MaestroProyectos() {
     handleSaveProject, handleArchiveProject, handleUnarchiveProject, handleSaveProjectNotes,
   } = useApp();
   const navigate = useNavigate();
-  const [modal,      setModal]      = useState(false);
-  const [editing,    setEditing]    = useState(null);
-  const [expanded,   setExpanded]   = useState({}); // access panel per project
-  const [notesProj,  setNotesProj]  = useState(null); // project with open notes dumper
-  const [notesText,  setNotesText]  = useState("");
-  const [notesSaving,setNotesSaving]= useState(false);
-  const [notesCopied,setNotesCopied]= useState(false);
+  const [modal,       setModal]      = useState(false);
+  const [editing,     setEditing]    = useState(null);
+  const [expanded,    setExpanded]   = useState({}); // access panel per project
+  const [apiPanel,    setApiPanel]   = useState({}); // api panel per project
+  const [apiTokens,   setApiTokens]  = useState({}); // raw tokens shown once {projectId: token}
+  const [apiLoading,  setApiLoading] = useState({}); // loading state per project
+  const [apiCopied,   setApiCopied]  = useState({}); // copied state per token field
+  const [notesProj,   setNotesProj]  = useState(null);
+  const [notesText,   setNotesText]  = useState("");
+  const [notesSaving, setNotesSaving]= useState(false);
+  const [notesCopied, setNotesCopied]= useState(false);
 
   function openNotes(p) {
     setNotesProj(p);
@@ -56,6 +64,37 @@ export default function MaestroProyectos() {
 
   function toggleAccess(pid) {
     setExpanded(prev => ({ ...prev, [pid]: !prev[pid] }));
+  }
+
+  function toggleApiPanel(pid) {
+    setApiPanel(prev => ({ ...prev, [pid]: !prev[pid] }));
+  }
+
+  async function handleGenerateSecret(p) {
+    setApiLoading(prev => ({ ...prev, [p._fid]: true }));
+    try {
+      const token = await generateProjectApiSecret(p._fid, p.apiName || "external");
+      setApiTokens(prev => ({ ...prev, [p._fid]: token }));
+    } finally {
+      setApiLoading(prev => ({ ...prev, [p._fid]: false }));
+    }
+  }
+
+  async function handleRevokeSecret(pid) {
+    if (!window.confirm("¿Revocar el secreto? Las integraciones que lo usen dejarán de funcionar.")) return;
+    setApiLoading(prev => ({ ...prev, [pid]: true }));
+    try {
+      await revokeProjectApiSecret(pid);
+      setApiTokens(prev => { const n = { ...prev }; delete n[pid]; return n; });
+    } finally {
+      setApiLoading(prev => ({ ...prev, [pid]: false }));
+    }
+  }
+
+  function copyApiField(pid, text) {
+    navigator.clipboard.writeText(text);
+    setApiCopied(prev => ({ ...prev, [pid]: true }));
+    setTimeout(() => setApiCopied(prev => ({ ...prev, [pid]: false })), 1500);
   }
 
   function ProjectRow({ p }) {
@@ -125,6 +164,20 @@ export default function MaestroProyectos() {
                 🔐 Acceso {expanded[p._fid] ? "▲" : "▼"}
               </button>
             )}
+            {!p.archived && isAdmin && (
+              <button
+                onClick={() => toggleApiPanel(p._fid)}
+                style={{
+                  background: apiPanel[p._fid] ? C.blue + "22" : C.border2,
+                  color: apiPanel[p._fid] ? C.blue : (p.apiEnabled ? C.green : C.muted),
+                  border: `1px solid ${apiPanel[p._fid] ? C.blue + "44" : (p.apiEnabled ? C.green + "44" : C.border)}`,
+                  borderRadius: 6, fontSize: 11, padding: "4px 10px",
+                  cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
+                }}
+              >
+                {p.apiEnabled ? "🔑 API ●" : "🔑 API"} {apiPanel[p._fid] ? "▲" : "▼"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -132,6 +185,122 @@ export default function MaestroProyectos() {
         {expanded[p._fid] && !p.archived && (
           <div style={{ borderTop: `1px solid ${C.border}`, background: C.panel }}>
             <ProjectAccessManager project={p} users={users} inline />
+          </div>
+        )}
+
+        {/* expandable API panel */}
+        {apiPanel[p._fid] && !p.archived && isAdmin && (
+          <div style={{ borderTop: `1px solid ${C.border}`, background: C.panel, padding: "16px 20px" }}>
+            <div style={{ fontWeight: 700, fontSize: 12, color: C.blue, marginBottom: 12 }}>
+              🔑 Integración API
+            </div>
+
+            {/* Endpoint URL */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>Endpoint base</div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <code style={{
+                  flex: 1, background: C.card, border: `1px solid ${C.border}`,
+                  borderRadius: 6, padding: "5px 10px", fontSize: 11,
+                  color: C.text, fontFamily: "monospace", wordBreak: "break-all",
+                }}>
+                  {API_BASE}
+                </code>
+                <button
+                  onClick={() => copyApiField(`url-${p._fid}`, API_BASE)}
+                  style={{ background: apiCopied[`url-${p._fid}`] ? C.green + "22" : C.border2, color: apiCopied[`url-${p._fid}`] ? C.green : C.muted, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 11, padding: "5px 10px", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}
+                >
+                  {apiCopied[`url-${p._fid}`] ? "✓" : "📋"}
+                </button>
+              </div>
+            </div>
+
+            {/* Estado actual del secreto */}
+            {p.apiEnabled ? (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: C.green, display: "inline-block", flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>Secreto activo</span>
+                  {p.apiSecretGeneratedAt && (
+                    <span style={{ fontSize: 10, color: C.muted }}>
+                      · generado {fmtDate(p.apiSecretGeneratedAt.slice(0, 10))}
+                    </span>
+                  )}
+                  {p.apiName && p.apiName !== "external" && (
+                    <span style={{ fontSize: 10, color: C.muted }}>· {p.apiName}</span>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    onClick={() => handleGenerateSecret(p)}
+                    disabled={apiLoading[p._fid]}
+                    style={{ background: C.blue + "22", color: C.blue, border: `1px solid ${C.blue}44`, borderRadius: 6, fontSize: 11, padding: "5px 12px", cursor: apiLoading[p._fid] ? "default" : "pointer", fontFamily: "inherit", fontWeight: 600, opacity: apiLoading[p._fid] ? 0.6 : 1 }}
+                  >
+                    {apiLoading[p._fid] ? "Generando…" : "🔄 Regenerar"}
+                  </button>
+                  <button
+                    onClick={() => handleRevokeSecret(p._fid)}
+                    disabled={apiLoading[p._fid]}
+                    style={{ background: C.muted + "22", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 11, padding: "5px 12px", cursor: apiLoading[p._fid] ? "default" : "pointer", fontFamily: "inherit", fontWeight: 600 }}
+                  >
+                    🚫 Revocar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: C.muted, display: "inline-block", flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: C.muted }}>Sin secreto activo</span>
+                </div>
+                <button
+                  onClick={() => handleGenerateSecret(p)}
+                  disabled={apiLoading[p._fid]}
+                  style={{ background: C.green + "22", color: C.green, border: `1px solid ${C.green}44`, borderRadius: 6, fontSize: 11, padding: "5px 14px", cursor: apiLoading[p._fid] ? "default" : "pointer", fontFamily: "inherit", fontWeight: 600, opacity: apiLoading[p._fid] ? 0.6 : 1 }}
+                >
+                  {apiLoading[p._fid] ? "Generando…" : "✦ Generar secreto"}
+                </button>
+              </div>
+            )}
+
+            {/* Token mostrado UNA vez tras generación */}
+            {apiTokens[p._fid] && (
+              <div style={{ background: C.orange + "14", border: `1px solid ${C.orange}44`, borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: C.orange, fontWeight: 700, marginBottom: 6 }}>
+                  ⚠ Copia este token ahora — no se volverá a mostrar
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <code style={{
+                    flex: 1, background: C.card, border: `1px solid ${C.border}`,
+                    borderRadius: 6, padding: "6px 10px", fontSize: 11,
+                    color: C.text, fontFamily: "monospace", wordBreak: "break-all",
+                    userSelect: "all",
+                  }}>
+                    {apiTokens[p._fid]}
+                  </code>
+                  <button
+                    onClick={() => copyApiField(`token-${p._fid}`, apiTokens[p._fid])}
+                    style={{ background: apiCopied[`token-${p._fid}`] ? C.green + "22" : C.orange + "22", color: apiCopied[`token-${p._fid}`] ? C.green : C.orange, border: `1px solid ${apiCopied[`token-${p._fid}`] ? C.green + "44" : C.orange + "44"}`, borderRadius: 6, fontSize: 11, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, flexShrink: 0 }}
+                  >
+                    {apiCopied[`token-${p._fid}`] ? "✓ Copiado" : "📋 Copiar"}
+                  </button>
+                </div>
+                <div style={{ fontSize: 10, color: C.muted, marginTop: 8 }}>
+                  Uso: <code style={{ fontFamily: "monospace" }}>Authorization: Bearer {apiTokens[p._fid].slice(0, 8)}…</code>
+                  <br />
+                  Llama a <code style={{ fontFamily: "monospace" }}>GET {API_BASE}/schema</code> para ver la documentación completa.
+                </div>
+              </div>
+            )}
+
+            {/* Referencia rápida */}
+            <div style={{ fontSize: 10, color: C.muted, borderTop: `1px solid ${C.border}`, paddingTop: 10, lineHeight: 1.8 }}>
+              <strong style={{ color: C.text }}>Referencia rápida:</strong><br />
+              <code style={{ fontFamily: "monospace" }}>GET /schema</code> → documentación y tipos<br />
+              <code style={{ fontFamily: "monospace" }}>GET /tasks</code> → listar tareas<br />
+              <code style={{ fontFamily: "monospace" }}>POST /tasks</code> → crear tarea<br />
+              <code style={{ fontFamily: "monospace" }}>PATCH /tasks/:id/advance</code> → avanzar estado
+            </div>
           </div>
         )}
       </div>

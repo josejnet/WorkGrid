@@ -48,3 +48,38 @@ export async function getAndIncrementTaskCounter(projectId) {
     return next;
   });
 }
+
+/**
+ * Genera un secreto API para el proyecto.
+ * - El token raw (64 chars hex) se devuelve UNA sola vez y NUNCA se almacena.
+ * - En Firestore solo se guarda el hash SHA-256.
+ * - apiName identifica la integración en los logs (p.ej. "Claude Assistant").
+ */
+export async function generateProjectApiSecret(projectId, apiName = "external") {
+  const array    = new Uint8Array(32);
+  window.crypto.getRandomValues(array);
+  const rawToken = Array.from(array).map(b => b.toString(16).padStart(2, "0")).join("");
+
+  const msgBuffer  = new TextEncoder().encode(rawToken);
+  const hashBuffer = await window.crypto.subtle.digest("SHA-256", msgBuffer);
+  const hashHex    = Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, "0")).join("");
+
+  await updDoc("projects", projectId, {
+    apiSecretHash:        hashHex,
+    apiEnabled:           true,
+    apiName:              apiName,
+    apiSecretGeneratedAt: new Date().toISOString(),
+  });
+
+  return rawToken;
+}
+
+/** Revoca el secreto API del proyecto. Las peticiones con el token antiguo fallarán. */
+export async function revokeProjectApiSecret(projectId) {
+  await updDoc("projects", projectId, {
+    apiSecretHash:        null,
+    apiEnabled:           false,
+    apiSecretGeneratedAt: null,
+  });
+}

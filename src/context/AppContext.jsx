@@ -19,7 +19,7 @@ import {
   markAllNotificationsRead, subscribeToNotifications,
 } from "../services/notificationService";
 import { SUPER_ADMIN } from "../lib/constants";
-import { projectPrefix } from "../lib/utils";
+import { projectPrefix, contentHash } from "../lib/utils";
 import { addDocCol, updDoc } from "../services/db";
 import { applyTheme } from "../lib/theme";
 
@@ -639,6 +639,17 @@ export function AppProvider({ children }) {
         )
       : null;
 
+    // Detect duplicate by content hash (guards against re-import after partial failure)
+    const hash = contentHash(rawTask);
+    if (!existingTask) {
+      const hashMatch = tareas.find(t =>
+        t.projectId === currentProjectId && t.importHash === hash
+      );
+      if (hashMatch) {
+        return { status: "skipped", taskId: hashMatch.taskId || hashMatch._fid };
+      }
+    }
+
     const today = new Date().toISOString().slice(0, 10);
     const toSave = {
       titulo:      rawTask.titulo     || "(sin título)",
@@ -658,9 +669,9 @@ export function AppProvider({ children }) {
 
     const pName   = _projectName(currentProjectId);
     if (existingTask) {
-      await updateTask(existingTask._fid, toSave);
+      await updateTask(existingTask._fid, { ...toSave, importHash: hash });
       setTareas(prev => prev.map(t =>
-        t._fid === existingTask._fid ? { ...t, ...toSave } : t
+        t._fid === existingTask._fid ? { ...t, ...toSave, importHash: hash } : t
       ));
       _log({
         projectId: currentProjectId, projectName: pName,
@@ -670,7 +681,7 @@ export function AppProvider({ children }) {
         action: "task_edited",
         detail: `[Importada actualización] [${existingTask.taskId || importedTaskId || existingTask._fid}] "${toSave.titulo}"`,
       });
-      return;
+      return { status: "updated", taskId: existingTask.taskId };
     }
 
     const project  = projects.find(p => p._fid === currentProjectId);
@@ -685,7 +696,7 @@ export function AppProvider({ children }) {
       ));
     }
 
-    const newTask = await createTask({ ...toSave, taskId: taskShortId }, currentProjectId, session.email);
+    const newTask = await createTask({ ...toSave, taskId: taskShortId, importHash: hash }, currentProjectId, session.email);
     if (newTask) {
       setTareas(prev => [...prev, newTask]);
       _log({
@@ -696,6 +707,7 @@ export function AppProvider({ children }) {
         detail: `[Importada nueva] [${taskShortId}] "${newTask.titulo}"`,
       });
     }
+    return { status: "created", taskId: taskShortId };
   }
 
   // ── Notification handlers ────────────────────────────────────────────────────

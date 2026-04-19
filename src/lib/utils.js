@@ -1,3 +1,12 @@
+export function contentHash(task) {
+  const s = [task.titulo, task.problema, task.solucion, task.tipo, task.prioridad, task.taskPrompt]
+    .map(v => (v || "").trim())
+    .join("\x00");
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 33) ^ s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
 export function fmtDate(iso) {
   if (!iso) return "—";
   const [y, m, d] = iso.split("-");

@@ -1,0 +1,705 @@
+openapi: 3.0.3
+
+info:
+  title: El Taller API
+  version: "1"
+  description: |
+    API REST para gestionar tareas de El Taller desde agentes de IA y herramientas externas.
+
+    ## Autenticación
+    Todas las rutas requieren un token de proyecto en la cabecera HTTP:
+    ```
+    Authorization: Bearer <token>
+    ```
+    El token se genera en la configuración del proyecto (Maestro de proyectos → API).
+    Cada token identifica unívocamente el proyecto; no es necesario especificar un `projectId`.
+
+    ## Máquina de estados
+    Las tareas siguen un flujo lineal estricto:
+    ```
+    Pendiente → En Desarrollo → Pruebas → Producción
+    ```
+    `Archivado` es un estado terminal que no puede alcanzarse vía API.
+    Una tarea en `Producción` o `Archivado` no puede avanzar.
+
+    ## Deduplicación
+    `POST /tasks` calcula un hash de contenido sobre los campos semánticos.
+    Si ya existe una tarea con el mismo hash en el proyecto, devuelve `200 status=skipped`
+    en lugar de crear un duplicado. Esto protege las reimportaciones parciales.
+
+    ## Flujo recomendado para agentes IA
+    1. `GET /schema` — obtener contexto del proyecto, campos y endpoints. Cachéalo.
+    2. `GET /tasks?estado=Pendiente` — listar tareas (incluye `ai_prompt`, `preanalysis_prompt` y `verification_prompt`).
+    3. Leer `preanalysis_prompt` — evalúa existencia, conflictos e impacto **antes de avanzar**.
+    4. Decidir: **PROCEDER** / **PAUSAR** / **MODIFICAR**. Solo continúa si es PROCEDER.
+    5. `POST /tasks/{id}/advance` — marcar como "En Desarrollo". La respuesta incluye `guidance`.
+    6. Ejecutar el trabajo usando `ai_prompt`.
+    7. Leer `verification_prompt` (estado En Desarrollo) — verifica código y calidad antes de avanzar.
+    8. `POST /tasks/{id}/advance` — avanzar a "Pruebas".
+    9. Leer `verification_prompt` (estado Pruebas) — verifica preparación para producción (**irreversible**).
+    10. `POST /tasks/{id}/advance` — avanzar a "Producción".
+
+contact:
+  name: El Taller
+
+servers:
+  - url: https://{host}/api/taller
+    description: Instancia de producción (Vercel)
+    variables:
+      host:
+        default: your-project.vercel.app
+        description: Dominio del despliegue en Vercel
+
+security:
+  - BearerAuth: []
+
+# ── Componentes reutilizables ──────────────────────────────────────────────────
+
+components:
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Token de proyecto generado en Configuración → Maestro de proyectos → API.
+
+  schemas:
+
+    # ── Tarea completa (respuesta de GET) ─────────────────────────────────────
+    Task:
+      type: object
+      description: Representación completa de una tarea devuelta por la API.
+      required:
+        - id
+        - titulo
+        - tipo
+        - problema
+        - solucion
+        - prioridad
+        - estado
+      properties:
+        id:
+          type: string
+          description: Identificador interno de Firestore (UUID opaco).
+          example: "4zKqRmN8pTvXcYwL"
+        taskId:
+          type: string
+          nullable: true
+          description: Identificador corto secuencial (prefijo-NNN). Null si aún no se asignó.
+          example: "SA-042"
+        titulo:
+          type: string
+          maxLength: 500
+          description: Título breve de la tarea.
+          example: "Error en pantalla de login"
+        tipo:
+          type: string
+          enum: [Bug, Mejora]
+          description: Clasificación de la tarea.
+          example: "Bug"
+        problema:
+          type: string
+          description: Descripción del problema o contexto.
+          example: "Los usuarios no pueden iniciar sesión con email inválido."
+        solucion:
+          type: string
+          description: Descripción de la solución propuesta.
+          example: "Añadir validación de formato de email antes de enviar el formulario."
+        prioridad:
+          type: string
+          enum: [Crítica, Alta, Media, Baja]
+          description: Prioridad de la tarea.
+          example: "Alta"
+        estado:
+          type: string
+          enum: [Pendiente, En Desarrollo, Pruebas, Producción, Archivado]
+          description: Estado actual en la máquina de estados.
+          example: "Pendiente"
+        next_state:
+          type: string
+          nullable: true
+          enum: [En Desarrollo, Pruebas, Producción, null]
+          description: Siguiente estado disponible. Null si la tarea está en un estado terminal.
+          example: "En Desarrollo"
+        responsable:
+          type: string
+          nullable: true
+          description: Email del responsable asignado.
+          example: "dev@ejemplo.com"
+        fechaInicio:
+          type: string
+          format: date
+          nullable: true
+          description: Fecha de inicio (YYYY-MM-DD).
+          example: "2026-04-19"
+        plazo:
+          type: string
+          format: date
+          nullable: true
+          description: Fecha límite (YYYY-MM-DD).
+          example: "2026-05-19"
+        fechaFin:
+          type: string
+          format: date
+          nullable: true
+          description: Fecha de finalización real (YYYY-MM-DD). Null si no ha terminado.
+          example: null
+        produccionAt:
+          type: string
+          format: date
+          nullable: true
+          description: Fecha en que la tarea llegó a Producción. Null si no ha llegado.
+          example: null
+        taskPrompt:
+          type: string
+          nullable: true
+          description: Prompt personalizado para agentes IA. Si está presente, sustituye al ai_prompt generado.
+          example: null
+        ai_prompt:
+          type: string
+          nullable: true
+          description: |
+            Prompt listo para usar por un agente IA. Se genera automáticamente a partir de
+            `taskPrompt` (si existe) o de `titulo` + `problema` + `solucion`.
+          example: "Tarea: Error en pantalla de login\n\nProblema: Los usuarios no pueden...\n\nSolución propuesta: Añadir validación..."
+        preanalysis_prompt:
+          type: string
+          nullable: true
+          description: |
+            Prompt de pre-análisis para agentes IA. Presente cuando `next_state` no es nulo.
+            Guía al agente a evaluar cuatro puntos antes de llamar a `/advance`:
+            1. **EXISTENCIA** — ¿ya existe código que lo implemente?
+            2. **CONFLICTOS** — ¿qué archivos/funciones se verán afectados?
+            3. **IMPACTO** — clasificación de riesgo del cambio.
+            4. **DECISIÓN** — PROCEDER / PAUSAR / MODIFICAR.
+            El agente solo debe llamar a `/advance` si su decisión es PROCEDER.
+          example: "PRE-ANÁLISIS — \"Añadir buscador\"\nTipo: Mejora | Prioridad: Alta | Pendiente → En Desarrollo\n..."
+        verification_prompt:
+          type: string
+          nullable: true
+          description: |
+            Prompt de verificación post-implementación. Presente solo para tareas en estado
+            `En Desarrollo` o `Pruebas`. Guía al agente a verificar que el trabajo está correcto
+            antes de llamar a `/advance`. Para la transición `Pruebas → Producción` incluye
+            checklist adicional (la transición es irreversible).
+
+            **En Desarrollo:** verifica código, calidad y ausencia de regresiones.
+            **Pruebas:** verifica funcionalidad completa, revisión, y preparación para producción.
+          example: "VERIFICACIÓN — \"Añadir buscador\"\nEn Desarrollo → Pruebas\n\n1. CÓDIGO\n   ✓ Compila..."
+        creadoEn:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp ISO 8601 de creación.
+          example: "2026-04-19T10:23:45.000Z"
+        creadoPor:
+          type: string
+          nullable: true
+          description: Identificador del creador. Formato `api:<apiName>` para tareas creadas vía API.
+          example: "api:external"
+
+    # ── Cuerpo de creación de tarea ───────────────────────────────────────────
+    TaskCreateBody:
+      type: object
+      required:
+        - titulo
+      properties:
+        titulo:
+          type: string
+          maxLength: 500
+          description: Título breve de la tarea. **Obligatorio.**
+          example: "Error en pantalla de login"
+        tipo:
+          type: string
+          description: |
+            Tipo de tarea. La API normaliza el valor de forma insensible a mayúsculas.
+            Alias aceptados → valor normalizado:
+            - `bug`, `defect`, `error` → `Bug`
+            - `mejora`, `feature`, `improvement`, `enhancement`, `task` → `Mejora`
+
+            Por defecto: `Mejora`.
+          example: "Bug"
+        problema:
+          type: string
+          description: Descripción del problema o contexto.
+          example: "Los usuarios no pueden iniciar sesión con email inválido."
+        solucion:
+          type: string
+          description: Descripción de la solución propuesta.
+          example: "Añadir validación de formato de email antes de enviar el formulario."
+        prioridad:
+          type: string
+          description: |
+            Prioridad de la tarea. La API normaliza el valor de forma insensible a mayúsculas.
+            Alias aceptados → valor normalizado:
+            - `crítica`, `critica`, `critical`, `urgent`, `urgente` → `Crítica`
+            - `alta`, `high` → `Alta`
+            - `media`, `medium`, `normal` → `Media`
+            - `baja`, `low` → `Baja`
+
+            Por defecto: `Media`.
+          example: "Alta"
+        responsable:
+          type: string
+          description: Email del responsable. Por defecto `Wk-CLI` si se omite.
+          example: "dev@ejemplo.com"
+        fechaInicio:
+          type: string
+          format: date
+          description: Fecha de inicio (YYYY-MM-DD). Por defecto la fecha actual.
+          example: "2026-04-19"
+        plazo:
+          type: string
+          format: date
+          description: Fecha límite (YYYY-MM-DD). Opcional.
+          example: "2026-05-19"
+        taskPrompt:
+          type: string
+          description: Prompt personalizado para agentes IA. Opcional.
+
+    # ── Respuesta de creación exitosa ─────────────────────────────────────────
+    TaskCreatedResponse:
+      type: object
+      required: [status, id, taskId, titulo, estado, next_state, creadoEn]
+      properties:
+        status:
+          type: string
+          enum: [created]
+          example: "created"
+        id:
+          type: string
+          description: Identificador interno de Firestore.
+          example: "4zKqRmN8pTvXcYwL"
+        taskId:
+          type: string
+          description: Identificador corto asignado (prefijo-NNN).
+          example: "SA-042"
+        titulo:
+          type: string
+          example: "Error en pantalla de login"
+        estado:
+          type: string
+          enum: [Pendiente]
+          example: "Pendiente"
+        next_state:
+          type: string
+          enum: [En Desarrollo]
+          example: "En Desarrollo"
+        creadoEn:
+          type: string
+          format: date-time
+          example: "2026-04-19T10:23:45.000Z"
+
+    # ── Respuesta de tarea omitida por duplicado ──────────────────────────────
+    TaskSkippedResponse:
+      type: object
+      description: |
+        Se devuelve cuando el contenido de la tarea ya existe en el proyecto
+        (mismo hash de deduplicación). No se crea ningún registro nuevo.
+      required: [status, id, message]
+      properties:
+        status:
+          type: string
+          enum: [skipped]
+          example: "skipped"
+        id:
+          type: string
+          description: Identificador Firestore de la tarea existente.
+          example: "4zKqRmN8pTvXcYwL"
+        taskId:
+          type: string
+          nullable: true
+          description: Identificador corto de la tarea existente.
+          example: "SA-042"
+        titulo:
+          type: string
+          description: Título de la tarea existente.
+          example: "Error en pantalla de login"
+        message:
+          type: string
+          example: "Tarea ya existente (duplicado por contenido)"
+
+    # ── Respuesta de avance de estado ─────────────────────────────────────────
+    AdvanceResponse:
+      type: object
+      required: [id, estado_anterior, estado_nuevo, timestamp]
+      properties:
+        id:
+          type: string
+          description: Identificador interno de Firestore.
+          example: "4zKqRmN8pTvXcYwL"
+        taskId:
+          type: string
+          nullable: true
+          description: Identificador corto de la tarea.
+          example: "SA-042"
+        estado_anterior:
+          type: string
+          enum: [Pendiente, En Desarrollo, Pruebas, Producción]
+          description: Estado antes del avance.
+          example: "Pendiente"
+        estado_nuevo:
+          type: string
+          enum: [En Desarrollo, Pruebas, Producción]
+          description: Estado después del avance.
+          example: "En Desarrollo"
+        next_state:
+          type: string
+          nullable: true
+          enum: [Pruebas, Producción, null]
+          description: Siguiente estado disponible tras el avance. Null si es terminal.
+          example: "Pruebas"
+        verification_required:
+          type: boolean
+          description: |
+            `true` si el nuevo estado requiere verificación antes del próximo advance.
+            Siempre `true` para En Desarrollo y Pruebas; `false` para Producción.
+          example: true
+        guidance:
+          type: string
+          nullable: true
+          description: |
+            Instrucción de seguimiento para el agente IA tras el avance. Indica qué debe
+            hacer a continuación (ejecutar trabajo, verificar antes del próximo advance, etc.).
+            `null` cuando el nuevo estado es terminal (Producción).
+          example: "Ejecuta el trabajo usando ai_prompt. Antes de avanzar a Pruebas, verifica la implementación con el campo verification_prompt de la tarea."
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-04-19T10:25:00.000Z"
+
+    # ── Respuesta de error genérico ───────────────────────────────────────────
+    ErrorResponse:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Código de error en mayúsculas.
+          enum: [VALIDATION, NOT_FOUND, INVALID_STATE, UNAUTHORIZED, INTERNAL]
+          example: "VALIDATION"
+        message:
+          type: string
+          description: Descripción legible del error.
+          example: "titulo es obligatorio"
+        current_state:
+          type: string
+          nullable: true
+          description: Solo presente en errores INVALID_STATE. Estado actual de la tarea.
+          example: "Producción"
+        next_state:
+          type: string
+          nullable: true
+          description: Solo presente en errores INVALID_STATE. Siempre null.
+
+    # ── Respuesta de /schema ──────────────────────────────────────────────────
+    SchemaResponse:
+      type: object
+      properties:
+        api:
+          type: string
+          example: "El Taller API"
+        version:
+          type: string
+          example: "1"
+        description:
+          type: string
+        project:
+          type: object
+          properties:
+            id:   { type: string }
+            nombre: { type: string }
+        authentication:
+          type: string
+        endpoints:
+          type: array
+          items:
+            type: object
+        state_machine:
+          type: object
+        ai_workflow:
+          type: object
+
+  responses:
+    Unauthorized:
+      description: Token inválido o proyecto sin API activa.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            error: UNAUTHORIZED
+            message: "Token inválido o proyecto sin API activa."
+
+    NotFound:
+      description: Tarea no encontrada por el ID proporcionado.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            error: NOT_FOUND
+            message: "Tarea \"SA-099\" no encontrada"
+
+    InternalError:
+      description: Error interno del servidor.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            error: INTERNAL
+            message: "Unexpected token in JSON"
+
+  parameters:
+    TaskId:
+      name: id
+      in: path
+      required: true
+      description: |
+        Identificador de la tarea. Acepta dos formatos:
+        - **Firestore ID**: identificador interno largo (ej. `4zKqRmN8pTvXcYwL`)
+        - **taskId corto**: formato `PREFIJO-NNN` (ej. `SA-042`)
+
+        La API resuelve ambos formatos. Se recomienda usar el `taskId` corto
+        cuando esté disponible, ya que es más estable ante migraciones.
+      schema:
+        type: string
+      example: "SA-042"
+
+# ── Rutas ─────────────────────────────────────────────────────────────────────
+
+paths:
+
+  /schema:
+    get:
+      operationId: getSchema
+      summary: Obtener esquema del proyecto
+      description: |
+        Devuelve el contexto completo del proyecto autenticado: endpoints disponibles,
+        máquina de estados, aliases de campos y flujo recomendado para agentes IA.
+        Útil como primer paso para que un agente comprenda el entorno de trabajo.
+      tags: [Meta]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Esquema del proyecto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchemaResponse' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "500": { $ref: '#/components/responses/InternalError' }
+
+  /tasks:
+    get:
+      operationId: listTasks
+      summary: Listar tareas del proyecto
+      description: |
+        Devuelve todas las tareas del proyecto autenticado, con filtros opcionales.
+        Cada tarea incluye el campo `ai_prompt` listo para consumir por agentes IA.
+        El campo `next_state` indica si la tarea puede avanzar y a qué estado.
+      tags: [Tareas]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: estado
+          in: query
+          required: false
+          description: Filtrar por estado exacto.
+          schema:
+            type: string
+            enum: [Pendiente, En Desarrollo, Pruebas, Producción, Archivado]
+          example: "Pendiente"
+        - name: prioridad
+          in: query
+          required: false
+          description: Filtrar por prioridad exacta.
+          schema:
+            type: string
+            enum: [Crítica, Alta, Media, Baja]
+          example: "Alta"
+        - name: limit
+          in: query
+          required: false
+          description: Número máximo de tareas a devolver. Rango 1–200. Por defecto 50.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+          example: 20
+      responses:
+        "200":
+          description: Lista de tareas.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tasks, total]
+                properties:
+                  tasks:
+                    type: array
+                    items: { $ref: '#/components/schemas/Task' }
+                  total:
+                    type: integer
+                    description: Número de tareas devueltas en esta respuesta.
+                    example: 12
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "500": { $ref: '#/components/responses/InternalError' }
+
+    post:
+      operationId: createTask
+      summary: Crear una nueva tarea
+      description: |
+        Crea una tarea en el proyecto autenticado. El `taskId` (ej. `SA-042`) se genera
+        automáticamente mediante un contador transaccional en Firestore.
+
+        **Deduplicación:** Antes de crear, se calcula un hash djb2 sobre los campos
+        semánticos (`titulo`, `problema`, `solucion`, `tipo`, `prioridad`, `taskPrompt`).
+        Si ya existe una tarea con ese hash en el proyecto, se devuelve `200 status=skipped`
+        sin crear un duplicado. Esto es transparente para el llamador y seguro en reintentos.
+
+        **Normalización de campos:** `tipo` y `prioridad` aceptan aliases en cualquier
+        capitalización (ver descripción de campos). El valor almacenado es siempre el
+        canónico (`Bug`, `Mejora`, `Crítica`, etc.).
+
+        La tarea se crea siempre en estado `Pendiente`.
+      tags: [Tareas]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskCreateBody' }
+            examples:
+              bug_simple:
+                summary: Bug con prioridad alta
+                value:
+                  titulo: "Error en pantalla de login"
+                  tipo: "Bug"
+                  problema: "Los usuarios no pueden iniciar sesión con email inválido."
+                  solucion: "Añadir validación de formato de email antes de enviar el formulario."
+                  prioridad: "Alta"
+                  responsable: "dev@ejemplo.com"
+              mejora_minima:
+                summary: Mejora con solo el título (mínimo obligatorio)
+                value:
+                  titulo: "Optimizar carga de la página de proyectos"
+      responses:
+        "201":
+          description: Tarea creada correctamente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskCreatedResponse' }
+              example:
+                status: created
+                id: "4zKqRmN8pTvXcYwL"
+                taskId: "SA-042"
+                titulo: "Error en pantalla de login"
+                estado: "Pendiente"
+                next_state: "En Desarrollo"
+                creadoEn: "2026-04-19T10:23:45.000Z"
+        "200":
+          description: |
+            Tarea omitida por deduplicación. El contenido ya existe en el proyecto.
+            No se crea ningún registro nuevo. Tratar como éxito idempotente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskSkippedResponse' }
+        "400":
+          description: Error de validación en el cuerpo de la petición.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              examples:
+                titulo_missing:
+                  value: { error: "VALIDATION", message: "titulo es obligatorio" }
+                titulo_too_long:
+                  value: { error: "VALIDATION", message: "titulo supera los 500 caracteres" }
+                tipo_invalid:
+                  value: { error: "VALIDATION", message: "tipo debe ser: Bug | Mejora" }
+                prioridad_invalid:
+                  value: { error: "VALIDATION", message: "prioridad debe ser: Crítica | Alta | Media | Baja" }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "500": { $ref: '#/components/responses/InternalError' }
+
+  /tasks/{id}:
+    get:
+      operationId: getTask
+      summary: Obtener una tarea por ID
+      description: |
+        Devuelve el detalle completo de una tarea. El parámetro `{id}` acepta tanto el
+        identificador interno de Firestore como el `taskId` corto (ej. `SA-042`).
+      tags: [Tareas]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        "200":
+          description: Tarea encontrada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "500": { $ref: '#/components/responses/InternalError' }
+
+  /tasks/{id}/advance:
+    post:
+      operationId: advanceTask
+      summary: Avanzar el estado de una tarea
+      description: |
+        Avanza la tarea al siguiente estado en la máquina de estados:
+        ```
+        Pendiente → En Desarrollo → Pruebas → Producción
+        ```
+        No acepta cuerpo en la petición. El estado destino se determina exclusivamente
+        por el estado actual de la tarea.
+
+        **Efectos secundarios:**
+        - Al avanzar a `Producción`, se registra `produccionAt` (fecha actual) y se activa
+          `listaChangelog = true`. Las tareas en Producción durante 7 días se archivan automáticamente.
+
+        **Errores:**
+        - `INVALID_STATE` (400) si la tarea está en `Producción` o `Archivado` (estados terminales).
+        - `NOT_FOUND` (404) si el `{id}` no corresponde a ninguna tarea del proyecto.
+      tags: [Tareas]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: false
+        description: No se requiere cuerpo.
+      responses:
+        "200":
+          description: Estado avanzado correctamente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdvanceResponse' }
+              example:
+                id: "4zKqRmN8pTvXcYwL"
+                taskId: "SA-042"
+                estado_anterior: "Pendiente"
+                estado_nuevo: "En Desarrollo"
+                next_state: "Pruebas"
+                timestamp: "2026-04-19T10:25:00.000Z"
+        "400":
+          description: La tarea está en un estado terminal y no puede avanzar.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example:
+                error: "INVALID_STATE"
+                message: "No se puede avanzar desde \"Producción\""
+                current_state: "Producción"
+                next_state: null
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "500": { $ref: '#/components/responses/InternalError' }
+
+tags:
+  - name: Meta
+    description: Endpoints de introspección y contexto del proyecto.
+  - name: Tareas
+    description: Operaciones CRUD y de flujo sobre tareas del proyecto.

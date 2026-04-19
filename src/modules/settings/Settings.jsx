@@ -7,15 +7,18 @@ import Btn from "../../components/ui/Btn";
 import UserModal from "./UserModal";
 import MaestroProyectos from "./MaestroProyectos";
 import LogDetallado from "./LogDetallado";
+import BackupExport from "./BackupExport";
+import BackupImport from "./BackupImport";
+import BackupRevincular from "./BackupRevincular";
 import { useApp } from "../../context/AppContext";
 
 export default function Settings() {
   const { users, activeProjects, isAdmin, handleSaveUser, handleDeleteUser, themeMode, handleToggleTheme } = useApp();
   const location = useLocation();
   const [tab, setTab]               = useState(location.state?.tab || "users");
+  const [backupMode, setBackupMode] = useState("export"); // "export" | "import"
   const [userModal, setUserModal]   = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const PAYPAL_DONATE_URL = "https://www.paypal.com/donate/?business=josejcoy%40gmail.com&currency_code=EUR&item_name=Support%20WorkGrid";
 
   const pending = users.filter(u => u.active === false && u.email !== SUPER_ADMIN);
 
@@ -52,28 +55,7 @@ export default function Settings() {
         </button>
       </div>
       <div style={{ fontSize: 12, color: C.muted, marginBottom: 24 }}>
-        Maestro de usuarios · Maestro de proyectos · Log detallado
-        <a
-          href={PAYPAL_DONATE_URL}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            marginLeft: 12,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "5px 10px",
-            borderRadius: 8,
-            border: `1px solid ${C.blue}66`,
-            background: C.blue + "18",
-            color: C.blue,
-            fontWeight: 700,
-            textDecoration: "none",
-            fontSize: 11,
-          }}
-        >
-          Donate PayPal
-        </a>
+        Maestro de usuarios · Maestro de proyectos · Log detallado · Backup
       </div>
 
       <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${C.border}`, marginBottom: 28 }}>
@@ -87,6 +69,9 @@ export default function Settings() {
         </button>
         <button style={tabStyle("projects")} onClick={() => setTab("projects")}>📋 Maestro de proyectos</button>
         <button style={tabStyle("log")}      onClick={() => setTab("log")}>📜 Log detallado</button>
+        {isAdmin && (
+          <button style={tabStyle("backup")} onClick={() => setTab("backup")}>📦 Backup</button>
+        )}
       </div>
 
       {/* ── Maestro de usuarios ── */}
@@ -173,6 +158,36 @@ export default function Settings() {
 
       {/* ── Log detallado ── */}
       {tab === "log" && <LogDetallado />}
+
+      {/* ── Backup ── */}
+      {tab === "backup" && isAdmin && (
+        <div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
+            {[
+              { key: "export",    label: "↓ Exportar" },
+              { key: "import",    label: "↑ Restaurar" },
+              { key: "revincular", label: "🔗 Re-vínculo" },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setBackupMode(key)}
+                style={{
+                  padding: "6px 16px", borderRadius: 7, border: `1px solid ${backupMode === key ? C.orange + "88" : C.border}`,
+                  background: backupMode === key ? C.orange + "18" : "transparent",
+                  color: backupMode === key ? C.orange : C.muted,
+                  fontWeight: backupMode === key ? 700 : 400,
+                  fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {backupMode === "export"     && <BackupExport />}
+          {backupMode === "import"     && <BackupImport />}
+          {backupMode === "revincular" && <BackupRevincular />}
+        </div>
+      )}
 
       {userModal && (
         <UserModal
