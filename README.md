@@ -138,6 +138,8 @@ The first user to register becomes admin automatically.
 - Browse and filter tasks by state, priority, or project
 - Advance task state with verification gates and two-step confirm for Production
 - Bulk import tasks from AI-generated structured text
+- Bulk import supports explicit multiline blocks using `<<INICIO>>` / `<<FIN>>`
+- Import parser keeps backward compatibility with legacy indented text and returns clear errors for malformed blocks
 - Copy `preanalysis_prompt` and `verification_prompt` to clipboard with one click
 - **Dynamic schema inspection** — fetches `/schema` on connect and adapts field handling automatically
 
@@ -308,6 +310,8 @@ El primer usuario en registrarse se convierte en admin automáticamente.
 - Navega y filtra tareas por estado, prioridad o proyecto
 - Avanza el estado de las tareas con verificación previa; doble confirmación para Producción
 - Importa tareas en bloque desde texto estructurado generado por IA
+- La importación masiva soporta bloques multilínea explícitos con `<<INICIO>>` / `<<FIN>>`
+- El parser mantiene compatibilidad con formato legacy indentado y devuelve errores claros en bloques mal cerrados
 - Copia `preanalysis_prompt` y `verification_prompt` al portapapeles con un clic
 - **Inspección dinámica del schema** — consulta `/schema` al conectar y adapta el manejo de campos automáticamente
 
