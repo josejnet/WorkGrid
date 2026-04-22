@@ -409,19 +409,37 @@ export function AppProvider({ children }) {
   }
 
   // ── Task handlers ───────────────────────────────────────────────────────────
+  function _normEmail(v) {
+    return String(v || "").trim().toLowerCase();
+  }
+
+  function _hasProjectWriteAccess(email, projectId) {
+    const normalized = _normEmail(email);
+    if (!normalized || !projectId) return false;
+
+    const user = users.find(u => _normEmail(u.email) === normalized);
+    if (!user) return true; // don't block unknown/legacy users
+
+    const isUserAdmin = _normEmail(user.email) === _normEmail(SUPER_ADMIN) || user.role === "admin";
+    if (isUserAdmin) return true;
+
+    const project = projects.find(p => p._fid === projectId);
+    if (!project) return false;
+
+    const writeUsersNormalized = (project.writeUsers || []).map(_normEmail);
+    return writeUsersNormalized.includes(normalized);
+  }
+
   function _validateAssignment(responsable, projectId) {
     if (!responsable) return true;
-    const u = users.find(x => x.email === responsable);
+    const normalized = _normEmail(responsable);
+    const u = users.find(x => _normEmail(x.email) === normalized);
     if (!u) return true;
     if (u.active === false) { alert(`El usuario ${responsable} está inactivo.`); return false; }
-    // Admins (any role=admin or SUPER_ADMIN) bypass project-permission check
-    const isUserAdmin = u.email === SUPER_ADMIN || u.role === "admin";
-    if (!isUserAdmin) {
-      const project = projects.find(p => p._fid === projectId);
-      if (project && !(project.writeUsers || []).includes(responsable)) {
-        alert(`${responsable} no tiene permiso de escritura en este proyecto.`);
-        return false;
-      }
+
+    if (!_hasProjectWriteAccess(responsable, projectId)) {
+      alert(`${responsable} no tiene permiso de escritura en este proyecto.`);
+      return false;
     }
     return true;
   }
@@ -542,8 +560,7 @@ export function AppProvider({ children }) {
     if (!isAdmin) { alert("Solo los administradores pueden mover tareas entre proyectos."); return; }
     const tarea = tareas.find(t => t._fid === tareaFid);
     if (tarea?.responsable) {
-      const targetProject = projects.find(p => p._fid === targetProjectId);
-      if (targetProject && !(targetProject.writeUsers || []).includes(tarea.responsable)) {
+      if (!_hasProjectWriteAccess(tarea.responsable, targetProjectId)) {
         alert(`El usuario asignado (${tarea.responsable}) no tiene permiso de escritura en el proyecto destino.`);
         return;
       }
