@@ -157,7 +157,11 @@
 
 FORMATO DE CADA TAREA:
 — Empieza con la línea:  === TAREA ===
-— Escribe los campos (uno por línea, formato  clave: valor)
+— Campos simples en una línea:  clave: valor
+— Campos multilínea con delimitadores explícitos:
+  clave: &lt;&lt;INICIO&gt;&gt;
+  contenido...
+  &lt;&lt;FIN&gt;&gt;
 — Termina con la línea:  === FIN ===
 — Separa tareas con una línea en blanco
 
@@ -172,42 +176,55 @@ CAMPOS DISPONIBLES:
   tipo      Mejora | Bug                    (default: Mejora)
 
 REGLAS:
-  - Si un campo tiene varias líneas, indenta las líneas de continuación con 2 espacios.
+  - Usa &lt;&lt;INICIO&gt;&gt; / &lt;&lt;FIN&gt;&gt; para cualquier campo con varias líneas (recomendado para problema, solucion y prompt).
+  - Compatibilidad legacy: también se aceptan continuaciones indentadas, pero evita ese formato en tareas nuevas.
   - Omite los campos que no conozcas; no los dejes vacíos.
   - No añadas campos extra ni comentes con #.
 
 EJEMPLO:
 === TAREA ===
 titulo: Añadir buscador de tareas en el Kanban
-problema: Con más de 20 tareas es imposible encontrar una concreta sin revisar columna por columna.
-solucion: Input de búsqueda debounced (300 ms) que filtre localmente las tarjetas visibles por título, problema y solución.
-prompt: En el componente KanbanBoard añade un input de texto en la cabecera.
-  Implementa un estado local `busqueda` con debounce de 300 ms.
-  Filtra las tareas de cada columna comparando el valor con titulo, problema y solucion (case-insensitive).
-  No realices llamadas adicionales a Firestore.
-  Criterio de éxito: escribir "login" muestra solo las tareas que contienen esa palabra.
+problema: &lt;&lt;INICIO&gt;&gt;
+Con más de 20 tareas es imposible encontrar una concreta sin revisar columna por columna.
+&lt;&lt;FIN&gt;&gt;
+solucion: &lt;&lt;INICIO&gt;&gt;
+Input de búsqueda debounced (300 ms) que filtre localmente las tarjetas visibles por título, problema y solución.
+&lt;&lt;FIN&gt;&gt;
+prompt: &lt;&lt;INICIO&gt;&gt;
+En el componente KanbanBoard añade un input de texto en la cabecera.
+Implementa un estado local `busqueda` con debounce de 300 ms.
+Filtra las tareas de cada columna comparando el valor con titulo, problema y solucion (case-insensitive).
+No realices llamadas adicionales a Firestore.
+Criterio de éxito: escribir "login" muestra solo las tareas que contienen esa palabra.
+&lt;&lt;FIN&gt;&gt;
 prioridad: Alta
 tipo: Mejora
 === FIN ===
 
 === TAREA ===
 titulo: Corregir error en login con email inválido
-problema: Al escribir un email sin @ el formulario se envía y devuelve un error 400 de Firebase en lugar de validar en el cliente.
-solucion: Validar formato de email con regex antes de llamar a signInWithEmailAndPassword.
-prompt: En LoginScreen.jsx añade validación de email antes del submit.
-  Usa la regex /^[^\s@]+@[^\s@]+\.[^\s@]+$/ para verificar el formato.
-  Muestra un mensaje de error inline (no alert) si el email no es válido.
+problema: &lt;&lt;INICIO&gt;&gt;
+Al escribir un email sin @ el formulario se envía y devuelve un error 400 de Firebase en lugar de validar en el cliente.
+&lt;&lt;FIN&gt;&gt;
+solucion: &lt;&lt;INICIO&gt;&gt;
+Validar formato de email con regex antes de llamar a signInWithEmailAndPassword.
+&lt;&lt;FIN&gt;&gt;
+prompt: &lt;&lt;INICIO&gt;&gt;
+En LoginScreen.jsx añade validación de email antes del submit.
+Usa la regex /^[^\s@]+@[^\s@]+\.[^\s@]+$/ para verificar el formato.
+Muestra un mensaje de error inline (no alert) si el email no es válido.
+&lt;&lt;FIN&gt;&gt;
 tipo: Bug
 prioridad: Media
 === FIN ===</pre>
       </details>
       <div class="card" style="max-width:720px">
         <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
-          Pega aquí el texto que te ha generado la IA. Cada tarea separada por <code style="background:var(--bg);padding:1px 5px;border-radius:3px">---</code>.
+          Pega aquí el texto que te ha generado la IA usando bloques <code style="background:var(--bg);padding:1px 5px;border-radius:3px">=== TAREA ===</code> / <code style="background:var(--bg);padding:1px 5px;border-radius:3px">=== FIN ===</code>.
         </p>
         <div class="field">
           <label>Texto con las tareas</label>
-          <textarea id="import-text" rows="12" placeholder="titulo: Mi tarea&#10;problema: Descripción&#10;---&#10;titulo: Otra tarea"></textarea>
+          <textarea id="import-text" rows="12" placeholder="=== TAREA ===&#10;titulo: Mi tarea&#10;problema: &lt;&lt;INICIO&gt;&gt;&#10;Descripción larga...&#10;&lt;&lt;FIN&gt;&gt;&#10;=== FIN ==="></textarea>
         </div>
         <div id="import-preview"></div>
         <div style="display:flex;gap:10px;margin-top:8px;">

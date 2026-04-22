@@ -447,18 +447,55 @@ function parseTasks(text, schemaFields) {
   if (!blocks.length) blocks = text.split(/\n\s*---+\s*\n/);
 
   var tasks = [];
-  blocks.forEach(function(block) {
+  blocks.forEach(function(block, blockIdx) {
     block = block.trim(); if (!block) return;
     var task = {}, lines = block.split('\n'), curKey = null, curVal = [];
+    var inExplicitMultiline = false;
+
+    function closeCurrentField() {
+      if (!curKey) return;
+      task[curKey] = curVal.join('\n').trim();
+    }
+
     lines.forEach(function(line) {
       var kv = line.match(/^([a-z_\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1a-z0-9]+)\s*:\s*(.*)/i);
+
+      // Explicit multiline mode: only <<FIN>> can close it.
+      if (inExplicitMultiline) {
+        if (line.trim() === '<<FIN>>') {
+          closeCurrentField();
+          curKey = null;
+          curVal = [];
+          inExplicitMultiline = false;
+        } else {
+          curVal.push(line);
+        }
+        return;
+      }
+
       if (kv) {
-        if (curKey) task[curKey] = curVal.join('\n').trim();
+        closeCurrentField();
         curKey = kv[1].toLowerCase().replace(/prompt$/, 'taskprompt');
-        curVal = [kv[2]];
-      } else if (curKey && line.match(/^\s{1,}/)) { curVal.push(line.trim()); }
+        var firstVal = kv[2] || '';
+
+        if (firstVal.trim() === '<<INICIO>>') {
+          curVal = [];
+          inExplicitMultiline = true;
+        } else {
+          curVal = [firstVal];
+        }
+      } else if (curKey) {
+        // Backward compatibility:
+        // keep legacy indented continuation, and also tolerate non-key lines
+        // so long paragraphs are not silently truncated.
+        curVal.push(line.trim());
+      }
     });
-    if (curKey) task[curKey] = curVal.join('\n').trim();
+
+    if (inExplicitMultiline) {
+      throw new Error('Bloque multilínea sin cerrar (falta <<FIN>>) en la tarea #' + (blockIdx + 1) + ' para el campo "' + curKey + '".');
+    }
+    closeCurrentField();
     tasks.push(buildTaskFromBlock(task, schemaFields));
   });
   return tasks.filter(function(t) { return t.titulo; });
@@ -467,10 +504,21 @@ function parseTasks(text, schemaFields) {
 function previewImport() {
   var text         = $('import-text').value;
   var schemaFields = cachedSchema ? parseSchemaFields(cachedSchema) : null;
-  var tasks        = parseTasks(text, schemaFields);
   var preview = $('import-preview');
   var btn     = $('btn-run-import');
   $('import-progress').style.display = 'none';
+  var tasks = [];
+  try {
+    tasks = parseTasks(text, schemaFields);
+  } catch (err) {
+    preview.innerHTML = '<div class="preview-item" style="border-color:var(--danger);color:var(--danger)">'
+      + '<div class="pi-title">Formato inválido</div>'
+      + '<div class="pi-meta">' + esc(err && err.message ? err.message : 'Error de parseo') + '</div>'
+      + '</div>';
+    btn.disabled = true;
+    btn.textContent = 'Importar todas';
+    return;
+  }
   if (!tasks.length) { preview.innerHTML = ''; btn.disabled = true; btn.textContent = 'Importar todas'; return; }
   preview.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">'
     + tasks.length + ' tarea' + (tasks.length !== 1 ? 's' : '') + ' detectada' + (tasks.length !== 1 ? 's' : '') + ' — revisa antes de importar:</div>'
@@ -495,7 +543,17 @@ function runImport() {
   ensureSchema()
     .then(function(schema) {
       var schemaFields = parseSchemaFields(schema);
-      var tasks = parseTasks($('import-text').value, schemaFields);
+      var tasks = [];
+      try {
+        tasks = parseTasks($('import-text').value, schemaFields);
+      } catch (err) {
+        prog.style.display = 'block';
+        prog.innerHTML = '<span style="color:var(--danger)"><b>Formato inválido:</b> '
+          + esc(err && err.message ? err.message : 'Error de parseo') + '</span>';
+        btn.disabled = false;
+        showToast('Formato de importación inválido', 'error');
+        return;
+      }
       if (!tasks.length) { btn.disabled = false; prog.style.display = 'none'; return; }
 
       var results = [];
