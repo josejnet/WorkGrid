@@ -20,14 +20,14 @@ import Settings          from "./modules/settings/Settings";
 
 // ── Inner shell (needs context) ───────────────────────────────────────────────
 function Shell() {
-  const { authUser, session, loaded, isAdmin, loginWithGoogle, handleSaveProject } = useApp();
+  const { authUser, session, loaded, isAdmin, loginWithGoogle, loginWithEmailPassword, handleSaveProject } = useApp();
   const [projectModal,   setProjectModal]   = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const isMobile     = useMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (authUser === undefined)    return <Loader />;
-  if (!authUser)                 return <LoginScreen onLogin={loginWithGoogle} />;
+  if (!authUser)                 return <LoginScreen onLogin={loginWithGoogle} onEmailLogin={loginWithEmailPassword} />;
   if (session?.active === false) return <AccesoPendiente />;
   if (!session || !loaded)       return <Loader />;
 

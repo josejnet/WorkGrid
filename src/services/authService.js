@@ -1,5 +1,5 @@
 import { auth, db } from "../firebase";
-import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, limit, query, setDoc } from "firebase/firestore";
 import { SUPER_ADMIN } from "../lib/constants";
 
@@ -18,11 +18,13 @@ const ALLOWED_EMAILS = import.meta.env.VITE_ALLOWED_EMAILS
 
 export function loginWithGoogle() {
   if (ALLOWED_DOMAIN) {
-    // Hint the Google picker to show accounts of this domain first.
-    // This is UX only — enforcement is done post-login in fetchSession.
     provider.setCustomParameters({ hd: ALLOWED_DOMAIN });
   }
   return signInWithPopup(auth, provider);
+}
+
+export function loginWithEmailPassword(email, password) {
+  return signInWithEmailAndPassword(auth, email, password);
 }
 
 export function logout() {
