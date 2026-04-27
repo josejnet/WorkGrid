@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { onAuthChange, loginWithGoogle, logout, fetchSession } from "../services/authService";
+import { onAuthChange, loginWithGoogle, loginWithEmail, logout, fetchSession } from "../services/authService";
 
 const AuthContext = createContext(null);
 
@@ -24,7 +24,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ authUser, session, loginWithGoogle, logout }}>
+    <AuthContext.Provider value={{ authUser, session, loginWithGoogle, loginWithEmail, logout }}>
       {children}
     </AuthContext.Provider>
   );

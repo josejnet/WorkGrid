@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { C, applyTheme } from "../../lib/theme";
 
+const DEMO_EMAIL    = import.meta.env.VITE_DEMO_EMAIL    ?? null;
+const DEMO_PASSWORD = import.meta.env.VITE_DEMO_PASSWORD ?? null;
+const DEMO_ENABLED  = !!(DEMO_EMAIL && DEMO_PASSWORD);
+
 const FEATURES = [
   { icon: "📊", title: "Dashboard KPIs",      desc: "Contadores en tiempo real por estado, vencidas y bugs abiertos." },
   { icon: "🗂",  title: "Kanban",              desc: "Columnas por estado con cards priorizadas y filtros por responsable." },
@@ -11,8 +15,10 @@ const FEATURES = [
   { icon: "🔔", title: "Actividad y alertas",  desc: "Log completo de cambios y notificaciones por tarea vencida o asignada.", wide: true },
 ];
 
-export default function LoginScreen({ onLogin }) {
-  const [loading, setLoading] = useState(false);
+export default function LoginScreen({ onLogin, onLoginEmail }) {
+  const [loading,      setLoading]      = useState(false);
+  const [demoLoading,  setDemoLoading]  = useState(false);
+  const [demoError,    setDemoError]    = useState(null);
   const [isDark, setIsDark] = useState(() => localStorage.getItem("theme") !== "light");
 
   function toggleTheme() {
@@ -20,6 +26,18 @@ export default function LoginScreen({ onLogin }) {
     setIsDark(next);
     applyTheme(next);
     localStorage.setItem("theme", next ? "dark" : "light");
+  }
+
+  async function handleDemoLogin() {
+    setDemoError(null);
+    setDemoLoading(true);
+    try {
+      await onLoginEmail(DEMO_EMAIL, DEMO_PASSWORD);
+    } catch {
+      setDemoError("No se pudo iniciar sesión con la cuenta demo.");
+    } finally {
+      setDemoLoading(false);
+    }
   }
 
   // Sign-in button: high contrast in both themes
@@ -92,6 +110,58 @@ export default function LoginScreen({ onLogin }) {
             </div>
           ))}
         </div>
+
+        {/* ── Demo credentials ── */}
+        {DEMO_ENABLED && (
+          <div style={{
+            background: isDark ? "rgba(99,102,241,0.08)" : "rgba(99,102,241,0.06)",
+            border: `1px solid ${isDark ? "rgba(99,102,241,0.35)" : "rgba(99,102,241,0.25)"}`,
+            borderRadius: 12, padding: "14px 16px", marginBottom: 12,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#818cf8", letterSpacing: 0.5, marginBottom: 10, textTransform: "uppercase" }}>
+              Acceso demo
+            </div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, color: C.muted, marginBottom: 3 }}>Usuario</div>
+                <div style={{
+                  background: C.card, border: `1px solid ${C.border}`,
+                  borderRadius: 7, padding: "6px 10px",
+                  fontFamily: "monospace", fontSize: 12.5, color: C.text,
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                }}>{DEMO_EMAIL}</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, color: C.muted, marginBottom: 3 }}>Contraseña</div>
+                <div style={{
+                  background: C.card, border: `1px solid ${C.border}`,
+                  borderRadius: 7, padding: "6px 10px",
+                  fontFamily: "monospace", fontSize: 12.5, color: C.text,
+                }}>{DEMO_PASSWORD}</div>
+              </div>
+            </div>
+            <button
+              onClick={handleDemoLogin}
+              disabled={demoLoading}
+              style={{
+                width: "100%",
+                background: demoLoading ? C.border2 : "#6366f1",
+                color: "#ffffff",
+                border: "none", borderRadius: 9,
+                padding: "10px 0", fontWeight: 700, fontSize: 13.5,
+                cursor: demoLoading ? "wait" : "pointer",
+                transition: "background 0.2s",
+              }}
+            >
+              {demoLoading ? "⏳ Conectando..." : "Entrar como Demo"}
+            </button>
+            {demoError && (
+              <div style={{ marginTop: 8, fontSize: 11.5, color: "#f87171", textAlign: "center" }}>
+                {demoError}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Sign-in button ── */}
         <button

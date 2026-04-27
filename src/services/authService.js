@@ -1,5 +1,5 @@
 import { auth, db } from "../firebase";
-import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { GoogleAuthProvider, signInWithEmailAndPassword, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, limit, query, setDoc } from "firebase/firestore";
 import { SUPER_ADMIN } from "../lib/constants";
 
@@ -23,6 +23,10 @@ export function loginWithGoogle() {
     provider.setCustomParameters({ hd: ALLOWED_DOMAIN });
   }
   return signInWithPopup(auth, provider);
+}
+
+export function loginWithEmail(email, password) {
+  return signInWithEmailAndPassword(auth, email, password);
 }
 
 export function logout() {

@@ -26,7 +26,7 @@ import { applyTheme } from "../lib/theme";
 const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
-  const { authUser, session, loginWithGoogle, logout } = useAuth();
+  const { authUser, session, loginWithGoogle, loginWithEmail, logout } = useAuth();
   const [projects,       setProjects]       = useState([]);
   const [tareas,         setTareas]         = useState([]);
   const [users,          setUsers]          = useState([]);
@@ -849,6 +849,7 @@ export function AppProvider({ children }) {
     accessibleProjects,
     // auth
     loginWithGoogle,
+    loginWithEmail,
     logout,
     // project handlers
     handleSaveProject,
