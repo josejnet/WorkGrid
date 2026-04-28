@@ -11,10 +11,7 @@
 
 **[→ work-grid-six.vercel.app](https://work-grid-six.vercel.app)**
 
-| | |
-|---|---|
-| **Email** | `user@user.com` |
-| **Password** | `useruser` |
+Sign in with any Google account · Inicia sesión con cualquier cuenta de Google
 
 The demo runs 3 sample projects at different stages:
 
