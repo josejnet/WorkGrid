@@ -13,6 +13,9 @@
 
 Sign in with any Google account · Inicia sesión con cualquier cuenta de Google
 
+> **Privacy:** When a new user signs in, all previous user records (including email addresses) are automatically deleted from the database. No email data is retained between sessions.  
+> **Privacidad:** Cuando un nuevo usuario inicia sesión, todos los registros anteriores (incluidas las direcciones de correo) se eliminan automáticamente de la base de datos. No se conservan datos entre sesiones.
+
 The demo runs 3 sample projects at different stages:
 
 | Project | Progress | States |

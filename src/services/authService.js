@@ -72,7 +72,7 @@ export async function fetchSession(firebaseUser) {
       const allSnap = await getDocs(usersCol);
       await Promise.all(
         allSnap.docs
-          .filter(d => d.id !== email && d.id !== SUPER_ADMIN)
+          .filter(d => d.id !== email)
           .map(d => deleteDoc(doc(db, "users", d.id)))
       );
       const userData = {
