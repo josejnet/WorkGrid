@@ -12,7 +12,7 @@
 > **This is a live demo** — sign in with your Google account to explore all features.  
 > **Esta es una demo en vivo** — inicia sesión con tu cuenta de Google para explorar todas las funciones.
 
-**[→ Open demo / Abrir demo](https://workgrid-demo.vercel.app)**
+**[→ Open demo / Abrir demo](https://work-grid-six.vercel.app)**
 
 The demo includes 3 sample projects at different stages of completion:
 
