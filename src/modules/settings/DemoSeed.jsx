@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useApp } from "../../context/AppContext";
 import { C } from "../../lib/theme";
 import Btn from "../../components/ui/Btn";
-import { createProject } from "../../services/projectService";
-import { createTask, getAndIncrementTaskCounter } from "../../services/taskService";
+import { createProject, getAndIncrementTaskCounter } from "../../services/projectService";
+import { createTask } from "../../services/taskService";
 import { saveUser } from "../../services/userService";
 import { projectPrefix } from "../../lib/utils";
 
