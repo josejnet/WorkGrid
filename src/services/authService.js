@@ -1,6 +1,6 @@
 import { auth, db } from "../firebase";
 import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { collection, doc, getDoc, getDocs, limit, query, setDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, getDocs, limit, query, setDoc } from "firebase/firestore";
 import { SUPER_ADMIN } from "../lib/constants";
 
 const provider = new GoogleAuthProvider();
@@ -68,12 +68,27 @@ export async function fetchSession(firebaseUser) {
       return { email, ...snap.data() };
     }
 
-    // First login — if this is the first user in the whole app, bootstrap as admin.
-    // Fallback: SUPER_ADMIN env var keeps explicit admin assignment support.
+    // New user — first login.
     const usersCol = collection(db, "users");
-    const firstUserSnap = await getDocs(query(usersCol, limit(1)));
-    const isFirstUser = firstUserSnap.empty;
-    const isSA = email === SUPER_ADMIN || isFirstUser;
+
+    const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
+
+    let isSA;
+    if (DEMO_MODE) {
+      // Demo: delete all previous users for privacy, then create new user as admin.
+      const allSnap = await getDocs(usersCol);
+      await Promise.all(
+        allSnap.docs
+          .filter(d => d.id !== SUPER_ADMIN)
+          .map(d => deleteDoc(doc(db, "users", d.id)))
+      );
+      isSA = true;
+    } else {
+      // Normal install: first user in the app becomes admin, rest need activation.
+      const firstUserSnap = await getDocs(query(usersCol, limit(1)));
+      isSA = firstUserSnap.empty || email === SUPER_ADMIN;
+    }
+
     const newUser = {
       name:     displayName || email,
       email,
