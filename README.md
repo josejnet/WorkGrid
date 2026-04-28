@@ -10,6 +10,18 @@ Si WorkGrid te resulta útil, considera apoyar el desarrollo a través de PayPal
 
 ---
 
+## 🎯 Live demo / Demo en vivo
+
+**[https://work-grid-six.vercel.app](https://work-grid-six.vercel.app)**
+
+> This is an educational demo with sample data. Login with:
+> - **Email:** `user@user.com` · **Password:** `useruser`
+>
+> Esta es una demo educativa con datos de ejemplo. Accede con:
+> - **Email:** `user@user.com` · **Contraseña:** `useruser`
+
+---
+
 ## Table of contents / Índice
 
 - [English](#english)
@@ -77,13 +89,25 @@ It ships with a REST API and a standalone CLI tool for automation and external i
 
 ### Install
 
+#### 1. Clone and install
+
 ```bash
 git clone https://github.com/josejnet/WorkGrid
 cd WorkGrid
 npm install
 ```
 
-Copy `.env.example` to `.env.local` and fill in your Firebase values:
+#### 2. Create a Firebase project
+
+1. Go to [console.firebase.google.com](https://console.firebase.google.com) and create a new project.
+2. **Firestore Database** → Create database → choose **Production mode** → select your region → Create.
+3. **Authentication** → Sign-in method → enable **Google** (and optionally **Email/Password**).
+4. In Authentication → Settings → **Authorized domains**, add your Vercel deployment domain (e.g. `myapp.vercel.app`).
+5. Go to **Project Settings** → General → scroll to "Your apps" → click the web icon `</>` → register the app → copy the config object.
+
+#### 3. Configure environment variables
+
+Copy `.env.example` to `.env.local` and fill in the values from the Firebase config:
 
 ```env
 VITE_FIREBASE_API_KEY=
@@ -98,29 +122,47 @@ VITE_SUPER_ADMIN=your@email.com
 VITE_ALLOWED_DOMAIN=yourcompany.com
 VITE_ALLOWED_EMAILS=alice@gmail.com,bob@gmail.com
 
-# Optional — Firebase App Check
+# Optional — Firebase App Check (reCAPTCHA v3)
 VITE_RECAPTCHA_SITE_KEY=
 ```
 
-Start locally:
+#### 4. Deploy Firestore security rules
+
+```bash
+npm install -g firebase-tools
+firebase login
+firebase deploy --only firestore:rules
+```
+
+Or paste the contents of `firestore.rules` directly in Firebase Console → Firestore → Rules.
+
+#### 5. Run locally
 
 ```bash
 npm run dev
 ```
 
-Deploy to Vercel:
+The first user to sign in becomes admin automatically.
+
+#### 6. Deploy to Vercel
 
 ```bash
 npx vercel --prod
 ```
 
-Add the following env var in Vercel to enable the REST API:
+Add all `VITE_FIREBASE_*` environment variables in **Vercel → Settings → Environment Variables**.
+
+To enable the REST API, also add:
 
 ```
 FIREBASE_SERVICE_ACCOUNT_B64=<base64-encoded Firebase service account JSON>
 ```
 
-The first user to register becomes admin automatically.
+Generate the service account key in Firebase Console → Project Settings → Service accounts → Generate new private key. Then encode it:
+
+```bash
+base64 -i serviceAccount.json | tr -d '\n'
+```
 
 ---
 
@@ -133,7 +175,6 @@ The first user to register becomes admin automatically.
 - Advance task state with verification gates and two-step confirm for Production
 - Bulk import tasks from structured text
 - Bulk import supports explicit multiline blocks using `<<INICIO>>` / `<<FIN>>`
-- Import parser keeps backward compatibility with legacy indented text and returns clear errors for malformed blocks
 - **Dynamic schema inspection** — fetches `/schema` on connect and adapts field handling automatically
 
 Open it directly in a browser (`file://`) or serve it from your Vercel deployment at `/workgrid-cli.html`.
@@ -208,13 +249,25 @@ Incluye una API REST y una herramienta CLI standalone para automatización e int
 
 ### Instalación
 
+#### 1. Clonar e instalar
+
 ```bash
 git clone https://github.com/josejnet/WorkGrid
 cd WorkGrid
 npm install
 ```
 
-Copia `.env.example` a `.env.local` y rellena tus datos de Firebase:
+#### 2. Crear un proyecto Firebase
+
+1. Ve a [console.firebase.google.com](https://console.firebase.google.com) y crea un nuevo proyecto.
+2. **Firestore Database** → Crear base de datos → elige **modo Producción** → selecciona tu región → Crear.
+3. **Authentication** → Método de acceso → activa **Google** (y opcionalmente **Correo electrónico/contraseña**).
+4. En Authentication → Configuración → **Dominios autorizados**, añade el dominio de tu despliegue en Vercel (p. ej. `miapp.vercel.app`).
+5. Ve a **Configuración del proyecto** → General → desplázate hasta "Tus apps" → haz clic en el icono web `</>` → registra la app → copia el objeto de configuración.
+
+#### 3. Configurar variables de entorno
+
+Copia `.env.example` a `.env.local` y rellena los valores del config de Firebase:
 
 ```env
 VITE_FIREBASE_API_KEY=
@@ -229,29 +282,47 @@ VITE_SUPER_ADMIN=tu@email.com
 VITE_ALLOWED_DOMAIN=tuempresa.com
 VITE_ALLOWED_EMAILS=alice@gmail.com,bob@gmail.com
 
-# Opcional — Firebase App Check
+# Opcional — Firebase App Check (reCAPTCHA v3)
 VITE_RECAPTCHA_SITE_KEY=
 ```
 
-Arranca en local:
+#### 4. Desplegar las reglas de Firestore
+
+```bash
+npm install -g firebase-tools
+firebase login
+firebase deploy --only firestore:rules
+```
+
+O pega el contenido de `firestore.rules` directamente en Firebase Console → Firestore → Reglas.
+
+#### 5. Arrancar en local
 
 ```bash
 npm run dev
 ```
 
-Deploy en Vercel:
+El primer usuario en registrarse se convierte en admin automáticamente.
+
+#### 6. Desplegar en Vercel
 
 ```bash
 npx vercel --prod
 ```
 
-Añade la siguiente variable de entorno en Vercel para activar la API REST:
+Añade todas las variables `VITE_FIREBASE_*` en **Vercel → Settings → Environment Variables**.
+
+Para activar la API REST, añade también:
 
 ```
 FIREBASE_SERVICE_ACCOUNT_B64=<JSON de cuenta de servicio de Firebase en base64>
 ```
 
-El primer usuario en registrarse se convierte en admin automáticamente.
+Genera la clave de cuenta de servicio en Firebase Console → Configuración del proyecto → Cuentas de servicio → Generar nueva clave privada. Luego codifícala:
+
+```bash
+base64 -i serviceAccount.json | tr -d '\n'
+```
 
 ---
 
@@ -264,7 +335,6 @@ El primer usuario en registrarse se convierte en admin automáticamente.
 - Avanza el estado de las tareas con verificación previa; doble confirmación para Producción
 - Importa tareas en bloque desde texto estructurado
 - La importación masiva soporta bloques multilínea explícitos con `<<INICIO>>` / `<<FIN>>`
-- El parser mantiene compatibilidad con formato legacy indentado y devuelve errores claros en bloques mal cerrados
 - **Inspección dinámica del schema** — consulta `/schema` al conectar y adapta el manejo de campos automáticamente
 
 Ábrelo directamente en el navegador (`file://`) o accede desde tu despliegue en `/workgrid-cli.html`.

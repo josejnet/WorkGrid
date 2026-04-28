@@ -134,7 +134,7 @@ export function AppProvider({ children }) {
       // ── 3. Bootstrap: default project if none exist (admin only) ───────────
       if (admin && projectsRaw.length === 0) {
         const id = await addDocCol("projects", {
-          nombre: "SBA", descripcion: "Club Ciclista SBA Albacete",
+          nombre: "Mi Proyecto", descripcion: "Primer proyecto",
           color: "#f97316", creadoEn: new Date().toISOString(),
           readUsers: [], writeUsers: [],
         });

@@ -11,9 +11,70 @@ import BackupExport from "./BackupExport";
 import BackupImport from "./BackupImport";
 import BackupRevincular from "./BackupRevincular";
 import { useApp } from "../../context/AppContext";
+import { seedDemoData } from "../../lib/seedDemo";
+
+const IS_DEMO = !!(import.meta.env.VITE_DEMO_EMAIL && import.meta.env.VITE_DEMO_PASSWORD);
+
+function DemoSeed({ adminEmail }) {
+  const [status,  setStatus]  = useState("idle"); // idle | loading | done | error
+  const [results, setResults] = useState(null);
+
+  async function handleSeed() {
+    if (!window.confirm("¿Crear proyectos y tareas de demo? Esto no borra datos existentes.")) return;
+    setStatus("loading");
+    try {
+      const r = await seedDemoData(adminEmail);
+      setResults(r);
+      setStatus("done");
+    } catch (e) {
+      console.error("[seed]", e);
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div style={{ maxWidth: 480 }}>
+      <div style={{ fontWeight: 700, fontSize: 15, color: C.text, marginBottom: 6 }}>🌱 Datos de demostración</div>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 20, lineHeight: 1.6 }}>
+        Crea 3 proyectos con distinto grado de avance (Portal Web, App Móvil, Panel Admin),
+        3 usuarios de equipo y 15 tareas distribuidas en todos los estados.
+        No elimina datos existentes.
+      </div>
+
+      {status === "idle" && (
+        <Btn onClick={handleSeed} color={C.green}>🌱 Crear datos de demo</Btn>
+      )}
+      {status === "loading" && (
+        <div style={{ fontSize: 13, color: C.muted }}>⏳ Creando datos...</div>
+      )}
+      {status === "done" && results && (
+        <div style={{
+          background: C.card, border: `1px solid ${C.border}`,
+          borderRadius: 10, padding: "14px 16px",
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: C.green, marginBottom: 8 }}>✓ Datos creados</div>
+          <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.8 }}>
+            <div>Proyectos nuevos: <strong style={{ color: C.text }}>{results.projects}</strong></div>
+            <div>Usuarios de equipo: <strong style={{ color: C.text }}>{results.users}</strong></div>
+            <div>Tareas: <strong style={{ color: C.text }}>{results.tasks}</strong></div>
+            {results.skipped > 0 && <div>Ya existían: <strong style={{ color: C.text }}>{results.skipped}</strong></div>}
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 10 }}>
+            Recarga la página para ver los nuevos datos en el dashboard.
+          </div>
+        </div>
+      )}
+      {status === "error" && (
+        <div style={{ fontSize: 12, color: "#f87171" }}>
+          Error al crear los datos. Revisa la consola del navegador.
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Settings() {
-  const { users, activeProjects, isAdmin, handleSaveUser, handleDeleteUser, themeMode, handleToggleTheme } = useApp();
+  const { users, activeProjects, isAdmin, session, handleSaveUser, handleDeleteUser, themeMode, handleToggleTheme } = useApp();
   const location = useLocation();
   const [tab, setTab]               = useState(location.state?.tab || "users");
   const [backupMode, setBackupMode] = useState("export"); // "export" | "import"
@@ -71,6 +132,9 @@ export default function Settings() {
         <button style={tabStyle("log")}      onClick={() => setTab("log")}>📜 Log detallado</button>
         {isAdmin && (
           <button style={tabStyle("backup")} onClick={() => setTab("backup")}>📦 Backup</button>
+        )}
+        {IS_DEMO && isAdmin && (
+          <button style={tabStyle("demo")} onClick={() => setTab("demo")}>🌱 Demo</button>
         )}
       </div>
 
@@ -187,6 +251,11 @@ export default function Settings() {
           {backupMode === "import"     && <BackupImport />}
           {backupMode === "revincular" && <BackupRevincular />}
         </div>
+      )}
+
+      {/* ── Demo seed ── */}
+      {tab === "demo" && IS_DEMO && isAdmin && (
+        <DemoSeed adminEmail={session?.email} />
       )}
 
       {userModal && (
