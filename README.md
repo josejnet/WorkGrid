@@ -11,8 +11,10 @@
 
 **[→ work-grid-six.vercel.app](https://work-grid-six.vercel.app)**
 
-> Sign in with **any Google account** to explore all features.  
-> Inicia sesión con **cualquier cuenta de Google** para explorar todas las funciones.
+| | |
+|---|---|
+| **Email** | `user@user.com` |
+| **Password** | `useruser` |
 
 The demo runs 3 sample projects at different stages:
 
