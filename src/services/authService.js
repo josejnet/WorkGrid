@@ -64,14 +64,20 @@ export async function fetchSession(firebaseUser) {
     const ref  = doc(db, "users", email);
     const snap = await getDoc(ref);
 
+    const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
+
     if (snap.exists()) {
-      return { email, ...snap.data() };
+      const data = snap.data();
+      // In demo mode ensure returning user is always active admin
+      if (DEMO_MODE && (!data.active || data.role !== "admin")) {
+        await setDoc(ref, { ...data, active: true, role: "admin" });
+        return { email, ...data, active: true, role: "admin" };
+      }
+      return { email, ...data };
     }
 
     // New user — first login.
     const usersCol = collection(db, "users");
-
-    const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
 
     let isSA;
     if (DEMO_MODE) {
