@@ -11,6 +11,7 @@ import BackupExport from "./BackupExport";
 import BackupImport from "./BackupImport";
 import BackupRevincular from "./BackupRevincular";
 import { useApp } from "../../context/AppContext";
+import DemoSeed from "./DemoSeed";
 
 export default function Settings() {
   const { users, activeProjects, isAdmin, handleSaveUser, handleDeleteUser, themeMode, handleToggleTheme } = useApp();
@@ -71,6 +72,9 @@ export default function Settings() {
         <button style={tabStyle("log")}      onClick={() => setTab("log")}>📜 Log detallado</button>
         {isAdmin && (
           <button style={tabStyle("backup")} onClick={() => setTab("backup")}>📦 Backup</button>
+        )}
+        {isAdmin && (
+          <button style={tabStyle("demo")} onClick={() => setTab("demo")}>🌱 Demo</button>
         )}
       </div>
 
@@ -188,6 +192,9 @@ export default function Settings() {
           {backupMode === "revincular" && <BackupRevincular />}
         </div>
       )}
+
+      {/* ── Demo seed ── */}
+      {tab === "demo" && isAdmin && <DemoSeed />}
 
       {userModal && (
         <UserModal

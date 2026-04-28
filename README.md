@@ -5,6 +5,27 @@
 > Self-hosted task management · React + Firebase + Vercel  
 > Gestión de tareas auto-alojada · React + Firebase + Vercel
 
+---
+
+## 🚀 Live demo / Demo en vivo
+
+> **This is a live demo** — sign in with your Google account to explore all features.  
+> **Esta es una demo en vivo** — inicia sesión con tu cuenta de Google para explorar todas las funciones.
+
+**[→ Open demo / Abrir demo](https://workgrid-demo.vercel.app)**
+
+The demo includes 3 sample projects at different stages of completion:
+
+| Project / Proyecto | Progress / Avance | Tasks / Tareas |
+|---|---|---|
+| Portal Web | 80% | 3 in Production, 2 in Testing, 1 in Development, 1 Pending |
+| App Móvil  | 20% | 2 in Development, 3 Pending |
+| Panel Admin | 50% | 1 in Production, 1 in Development, 2 Pending |
+
+Sign in with **any Google account** · Inicia sesión con **cualquier cuenta de Google**
+
+---
+
 If WorkGrid helps you, consider supporting development via PayPal.  
 Si WorkGrid te resulta útil, considera apoyar el desarrollo a través de PayPal.
 
