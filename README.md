@@ -2,6 +2,11 @@
 
 [![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=josejcoy%40gmail.com&currency_code=EUR&item_name=Support%20WorkGrid)
 
+If WorkGrid helps you, consider supporting development via PayPal.  
+Si WorkGrid te resulta útil, considera apoyar el desarrollo a través de PayPal.
+
+---
+
 > Self-hosted task management · React + Firebase + Vercel  
 > Gestión de tareas auto-alojada · React + Firebase + Vercel
 
@@ -26,10 +31,6 @@ The demo runs 3 sample projects at different stages:
 
 ---
 
-If WorkGrid helps you, consider supporting development via PayPal.  
-Si WorkGrid te resulta útil, considera apoyar el desarrollo a través de PayPal.
-
----
 
 ## Table of contents / Índice
 
