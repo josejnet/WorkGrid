@@ -61,40 +61,39 @@ export async function fetchSession(firebaseUser) {
   }
 
   try {
-    const ref  = doc(db, "users", email);
-    const snap = await getDoc(ref);
+    const ref      = doc(db, "users", email);
+    const snap     = await getDoc(ref);
+    const usersCol = collection(db, "users");
 
     const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
 
-    if (snap.exists()) {
-      const data = snap.data();
-      // In demo mode ensure returning user is always active admin
-      if (DEMO_MODE && (!data.active || data.role !== "admin")) {
-        await setDoc(ref, { ...data, active: true, role: "admin" });
-        return { email, ...data, active: true, role: "admin" };
-      }
-      return { email, ...data };
-    }
-
-    // New user — first login.
-    const usersCol = collection(db, "users");
-
-    let isSA;
     if (DEMO_MODE) {
-      // Demo: delete all previous users for privacy, then create new user as admin.
+      // Delete every user except the one logging in now (privacy reset on every login).
       const allSnap = await getDocs(usersCol);
       await Promise.all(
         allSnap.docs
-          .filter(d => d.id !== SUPER_ADMIN)
+          .filter(d => d.id !== email && d.id !== SUPER_ADMIN)
           .map(d => deleteDoc(doc(db, "users", d.id)))
       );
-      isSA = true;
-    } else {
-      // Normal install: first user in the app becomes admin, rest need activation.
-      const firstUserSnap = await getDocs(query(usersCol, limit(1)));
-      isSA = firstUserSnap.empty || email === SUPER_ADMIN;
+      const userData = {
+        name:     snap.exists() ? (snap.data().name || displayName || email) : (displayName || email),
+        email,
+        photoURL: photoURL || null,
+        role:     "admin",
+        active:   true,
+        creadoEn: snap.exists() ? snap.data().creadoEn : new Date().toISOString(),
+      };
+      await setDoc(ref, userData);
+      return { ...userData };
     }
 
+    if (snap.exists()) {
+      return { email, ...snap.data() };
+    }
+
+    // New user — normal install: first user becomes admin, rest need activation.
+    const firstUserSnap = await getDocs(query(usersCol, limit(1)));
+    const isSA = firstUserSnap.empty || email === SUPER_ADMIN;
     const newUser = {
       name:     displayName || email,
       email,
